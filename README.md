@@ -43,29 +43,42 @@ The following instructions are available:
 
 > Note: In these examples I've prefixed "c" to the input, this clears the state of the temporary storage area - which isn't necessary if you run them immediately upon startup, but will avoid surprises otherwise.
 
+Also note that I broke up the "programs" with whitespace to aid readability.  This still works, spaces, TABs, and newlines are skipped over by the interpreter.
+
 Store the value 42 in the temporary storage area, and print it:
 
 ```
-c42p
+c 42 p
 ```
 
-Store the value 42 in the temporary storage area, then print that as a character:
+Store the value 42 in the temporary storage area, then print that as if it were the ASCII code of a character (output "`*`"):
 
 ```
-c42x
+c 42 x
 ```
 
-Configure the I/O port to be port 0x01, read a byte from it, and print that value:
+Configure the I/O port to be port 0x01, read a byte from it to the temporary storage area, then print that value:
 
 ```
-c1#ip
+c 1 # i p
 ```
 
 Write the byte 32, then the byte 77, to the I/O port 3.
 
 ```
-c3#c32oc77o
+c 3 # c 32 o c 77 o
 ```
+
+To be more explicit that last example could have been written as:
+
+* `c3#c32oc77o`
+  * `c3` - Clear the storage area, and write the number 3 to it.
+  * `#` - Set the I/O port to be used for (i)nput and (o)utput to be the value in the temporary storage-area, i.e. 3.
+  * `c32` - Clear the storage area, and write the number 32 to it.
+  * `o` - Output the byte in the storage area (32) to the currently selected I/O port (3)
+  * `c77` - Clear the storage area, and write the number 77 to it.
+  * `o` - Output the byte in the storage area (77) to the currently selected I/O port (3)
+
 
 
 
