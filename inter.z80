@@ -97,79 +97,78 @@ MACRO POP_ALL
         pop af
       ENDM
 
+      ;
+      ; CP/M binaries start at 0x100
+      ;
+      ORG 0x100
 
-   ;
-   ; CP/M binaries start at 0x100
-   ;
-   ORG 0x100
-
-   ;
-   ; We can be built as a REPL, or as a test-driver.
-   ;
+      ;
+      ; We can be built as a REPL, or as a test-driver.
+      ;
 IF REPL
 
-   ;
-   ; REPL will prompt for input, and execute it, endlessly
-   ;
+      ;
+      ; REPL will prompt for input, and execute it, endlessly
+      ;
 repl_loop:
 
-   ; Fill input-buffer with NULL
-   ld hl, input_buffer+2
-   ld bc, 200
+      ; Fill input-buffer with NULL
+      ld hl, input_buffer+2
+      ld bc, 200
 repl_loop_reset:
-   ld (hl), 0x00
-   inc hl
-   djnz repl_loop_reset
+      ld (hl), 0x00
+      inc hl
+      djnz repl_loop_reset
 
-   ; The start of the prompt
-   ld a, 0x0a
-   call bios_output_character
-   ld a, 0x0d
-   call bios_output_character
-   ld a, '['
-   call bios_output_character
+      ; The start of the prompt
+      ld a, 0x0a
+      call bios_output_character
+      ld a, 0x0d
+      call bios_output_character
+      ld a, '['
+      call bios_output_character
 
-   ;
-   ; Show the I/O port
-   ;
-   ld hl, io_port
-   ld a, (hl)
-   ld h, 0x0
-   ld l, a
-   call DispHL
+      ;
+      ; Show the I/O port
+      ;
+      ld hl, io_port
+      ld a, (hl)
+      ld h, 0x0
+      ld l, a
+      call DisplayHLAsHex
 
-   ; The end of the prompt
-   ld a, ']'
-   call bios_output_character
-   ld a, '>'
-   call bios_output_character
+      ; The end of the prompt
+      ld a, ']'
+      call bios_output_character
+      ld a, '>'
+      call bios_output_character
 
 
-   ;
-   ; Read input - 200 bytes, starting at the input-buffer
-   ;
-   ld de, input_buffer
-   ld a, 200
-   ld (de),a
-   ld c, 0x0A
-   call 0x005
+      ;
+      ; Read input - 200 bytes, starting at the input-buffer
+      ;
+      ld de, input_buffer
+      ld a, 200
+      ld (de),a
+      ld c, 0x0A
+      call 0x005
 
-   ;
-   ; Print a newline
-   ;
-   ld a, 0x0A
-   call bios_output_character
+      ;
+      ; Print a newline
+      ;
+      ld a, 0x0A
+      call bios_output_character
 
-   ;
-   ; Now interpret the string
-   ;
-   ld hl, input_buffer + 2
-   call interpret
+      ;
+      ; Now interpret the string
+      ;
+      ld hl, input_buffer + 2
+      call interpret
 
-   ;
-   ; Repeat
-   ;
-   jr repl_loop
+      ;
+      ; Repeat
+      ;
+      jr repl_loop
 
 ELSE
 
@@ -420,7 +419,7 @@ print_stack:
         ld a, (hl)
         ld h, 0
         ld l, a
-        call DispHL
+        call DisplayHLAsHex
 
         ; newline after the output
         ld a, 0x0A
@@ -486,39 +485,39 @@ bios_output_string:
 
 
 ;
-; Display HL - a number
+; Display the contents of HL as a hexadecimal number.
 ;
-DispHL:
-	ld	bc,-10000
-	call	Num1
-	ld	bc,-1000
-	call	Num1
-	ld	bc,-100
-	call	Num1
-	ld	c,-10
-	call	Num1
-	ld	c,-1
-Num1:	ld	a,'0'-1
-Num2:	inc	a
-	add	hl,bc
-	jr	c,Num2
-	sbc	hl,bc
-
+DisplayHLAsHex:
         PUSH_ALL
-
-        ld e, a
-        call bios_output_character
-
-        POP_ALL
-	ret
-
-show_a_register:
-        PUSH_ALL
-        ld h,0
-	ld l,a
-	call DispHL
+        ld  c,h
+        call  output_8_bit_number
+        ld  c,l
+        call output_8_bit_number
         POP_ALL
         ret
+
+
+;;
+;; Display the 8-bit number stored in C in hex.
+;;
+output_8_bit_number:
+        ld  a,c
+        rra
+        rra
+        rra
+        rra
+        call  Conv
+        ld  a,c
+Conv:
+        and  $0F
+        add  a,$90
+        daa
+        adc  a,$40
+        daa
+        ld e, a
+        call bios_output_character
+        ret
+
 
 ;;
 ;; The string we interpret
@@ -528,11 +527,13 @@ sample_str:
         DB 0x00
 
 ;;
-;; Storage area for numbers which have been input.
+;; We allow a single number to be entered into the storage-area, and used
+;; for various purposes.  The value is copied here.
 ;;
-;; The maximum value is 0xFF
+;; The maximum value is 0xFFFF
 ;;
 tmp_store:
+        DB 0x00
         DB 0x00
 
 ;;
