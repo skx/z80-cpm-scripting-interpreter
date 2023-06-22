@@ -81,6 +81,18 @@ To be more explicit that last example could have been written as:
 
 
 
+## Porting
+
+We use the CP/M BIOS calls for simplicity, if you wished to port this code to a single-board Z80-based system, without CP/M, that would not be hard:
+
+* Add your UART initialization.
+* Update the code to read/write to the console.
+  * We currently use the BIOS to read input.
+  * We currently use the BIOS to write output.
+
+TODO: Better instructions for this, and make the routines easier to replace.
+
+
 
 ## Inspiration
 
