@@ -36,9 +36,6 @@
 
 ;;; TODO
 ;;
-;;  - The temporary store allows only 8-bit values to be used.
-;;    If we wanted to allow RAM read/write we'd need to extend that.
-;;
 ;;  - Allow either stack operations, or the use of named variables
 ;;    - A single "temporary area" is too limiting.
 ;;
@@ -129,13 +126,11 @@ repl_loop_reset:
       call bios_output_character
 
       ;
-      ; Show the I/O port
+      ; Show the I/O port - 0x00-0xff
       ;
       ld hl, io_port
-      ld a, (hl)
-      ld h, 0x0
-      ld l, a
-      call DisplayHLAsHex
+      ld c, (hl)
+      call output_8_bit_number
 
       ; The end of the prompt
       ld a, ']'
@@ -254,9 +249,9 @@ interpret:
         ;; Is it a C?
         ;;
         cp 'c'
-        jr z, clear_stack
+        jp z, clear_stack
         cp 'C'
-        jr z, clear_stack
+        jp z, clear_stack
 
         ;;
         ;; Is it a X?
@@ -314,47 +309,98 @@ ENDIF
 
 
 ;;
-;; Digit - Called if the input contains a number
+;; Digit - Called if the input contains a number.
 ;;
-;; Inputs: A register contains the ASCII character
+;; Inputs:
+;;  - A register contains the ASCII character.
+;;  - HL register contains pointer to next character of input
+;;
 digit:
         PUSH_ALL
-        sub '0'
+
+        ; we're called with the numerical digit in A,
+        ; and the address of the NEXT digit stored in HL
+        ;
+        ; We're going to cheat and use a routine that wants to
+        ; read the start of the string
+        dec hl
+
+        push hl
+        pop de
+
+        call atoui_16
+
+        ; hl has the result
+        push hl
+        pop bc
+
+        ; DE points to the value after
+        ld hl, xx
+        ld (hl),d
+        inc hl
+        ld (hl), e
+
+        ; save the value
         ld hl, tmp_store
-        push af
+        ld (hl), b
+        inc hl
+        ld (hl), c
 
-        ; store *= 10
-        ld b, (hl)
-        ld c, 10
-        call multiply
 
-        pop af
-        ; now add the new digit
-        add a,l
-
-        ; save the result
-        ld hl, tmp_store
-        ld (hl),a
         POP_ALL
+
+        ld hl,xx
+        ld a, (hl)
+        inc hl
+        ld l, (hl)
+        ld h, a
         jp interpret
 
+xx:
+        DB 0x00
+        DB 0x00
 
-
-; INPUT: THE VALUES IN REGISTER B EN C
-; OUTPUT: HL = B * C
-; CHANGES: AF,DE,HL,B
-;
-multiply:
-	LD HL,0
-	LD A,B
-	OR A
-	RET Z
-	LD D,0
-	LD E,C
-LOOP:	ADD HL,DE
-	DJNZ LOOP
-	RET
-
+string_to_uint16:
+atoui_16:
+;Input:
+;     DE points to the string
+;Outputs:
+;     HL is the result
+;     A is the 8-bit value of the number
+;     DE points to the byte after the number
+;Destroys:
+;     BC
+;       if the string is non-empty, BC is HL/10
+;Size:  24 bytes
+;Speed: 42+d(104+{0,9})
+;       d is the number of digits in the number
+;       max is 640 cycles for a 5 digit number
+;Assuming no leading zeros:
+;1 digit:  146cc
+;2 digit:  250cc
+;3 digit:  354cc or 363cc (avg: 354.126cc)
+;4 digit:  458cc or 467cc (avg: 458.27cc)
+;5 digit:  562cc or 571cc or 580cc (avg: 562.4104cc)
+;avg: 544.81158447265625cc (544+13297/16384)
+;===============================================================
+  ld hl,0
+_:
+  ld a,(de)
+  sub 30h
+  cp 10
+  ret nc
+  inc de
+  ld b,h
+  ld c,l
+  add hl,hl
+  add hl,hl
+  add hl,bc
+  add hl,hl
+  add a,l
+  ld l,a
+  jr nc,_
+  inc h
+  jp _
 
 ;;
 ;; Called if we've got a C in the input; clear the temporary store
@@ -362,6 +408,8 @@ LOOP:	ADD HL,DE
 clear_stack:
         PUSH_ALL
         ld hl, tmp_store
+        ld (hl), 0x00
+        inc hl
         ld (hl), 0x00
         POP_ALL
         jp interpret
@@ -382,6 +430,8 @@ io_port_in:
 
         ; store
         ld hl, tmp_store
+        ld (hl), 0x0
+        inc hl
         ld (hl),a
         POP_ALL
         jp interpret
@@ -399,7 +449,7 @@ io_port_out:
         ld c, (hl)
 
         ; get the value to write
-        ld hl, tmp_store
+        ld hl, tmp_store+1
         ld a, (hl)
 
         ; write
@@ -417,8 +467,9 @@ print_stack:
         PUSH_ALL
         ld hl, tmp_store
         ld a, (hl)
-        ld h, 0
-        ld l, a
+        inc hl
+        ld l, (hl)
+        ld h, a
         call DisplayHLAsHex
 
         ; newline after the output
@@ -436,7 +487,7 @@ print_stack:
 ;;
 io_port_set:
         PUSH_ALL
-        ld hl, tmp_store
+        ld hl, tmp_store+1
         ld a, (hl)
         ld hl, io_port
         ld (hl),a
@@ -496,6 +547,40 @@ DisplayHLAsHex:
         POP_ALL
         ret
 
+
+;;
+;; Read the two-digit HEX number from HL, and convert to an integer
+;; stored in the A-register.
+;;
+;; HL will be incremented twice.
+;;
+read_8_bit_ascii_number:
+	ld		a, (hl)
+        ;; is it lower-case?  If so upper-case it.
+        cp 'a'
+        jr c, read_8_bit_ascii_number_uc
+        cp 'z'
+        jr nc, read_8_bit_ascii_number_uc
+        sub 32
+read_8_bit_ascii_number_uc:
+        call		read_8_bit_ascii_number_hex
+        add		a, a
+        add		a, a
+        add		a, a
+        add		a, a
+        ld		d, a
+	inc		hl
+        ld		a, (hl)
+        call		read_8_bit_ascii_number_hex
+        or		d
+	inc		hl
+        ret
+read_8_bit_ascii_number_hex:
+        sub		'0'
+        cp		10
+        ret		c
+        sub		'A'-'0'-10
+        ret
 
 ;;
 ;; Display the 8-bit number stored in C in hex.
