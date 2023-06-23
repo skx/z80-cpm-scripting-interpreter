@@ -40,6 +40,7 @@
 ;;   r:  Read the contents of the memory-address, and place in the storage area.
 ;;   w:  Write the contents of the storage-area (byte) to the selected memory address.
 ;;   x:  Print the character whos ASCII code is stored in the storage-area
+;;   _:  Print the string contained between "_" and "_".
 ;; " ":  Whitespace is skipped over
 ;;
 ;; All other inputs are ignored.
@@ -52,7 +53,9 @@
 ;;
 ;;  - Add "+", "-", etc.
 ;;
-;;  - Allow conditionals, or loops, of some kind.
+;;  - Allow conditionals of some kind.  []
+
+;;  - Allow loops, using the k-register. {}
 ;;
 
 ;;; Sample code
@@ -321,6 +324,10 @@ interpret:
         ;; Is this an I/O port flag?
         cp '#'
         jp z, io_port_set
+
+        ;; Is this string output?
+        cp '_'
+        jp z, string_output
 
         ;; Is this an K-register set?
         cp 'k'
@@ -720,6 +727,19 @@ k_register_get:
         POP_ALL
         jp interpret
 
+;;
+;; Called when we see "_hello, world_"
+;;
+string_output:
+        ld a,(hl)
+        cp '_'
+        jr z, string_output_over
+        call bios_output_character
+        inc hl
+        jr string_output
+string_output_over:
+        inc hl
+        jp interpret
 
 ;;
 ;; called if we've got an X in the input
@@ -728,7 +748,7 @@ k_register_get:
 ;;
 output_stack_char:
         PUSH_ALL
-        ld hl, tmp_store
+        ld hl, tmp_store+1
         ld a, (hl)
         call bios_output_character
         POP_ALL

@@ -40,6 +40,8 @@ The following instructions are available:
   * Ignored.
 * `#`
   * Set the I/O-port to be the value of the accumulator.
+* `_`
+  * Print the string wrapped by by "_" characters.
 * `c`
   * Clear the number in the accumulator.  (i.e. Set to zero).
 * `g`
@@ -78,6 +80,12 @@ The following instructions are available:
 > Note: In these examples I've prefixed "c" to the input, this clears the state of the temporary storage area - which isn't necessary if you run them immediately upon startup, but will avoid surprises otherwise.
 
 Also note that I broke up the "programs" with whitespace to aid readability.  This still works, spaces, TABs, and newlines are skipped over by the interpreter.
+
+Show a greeting:
+
+```
+_Hello, world!_
+```
 
 Store the value 42 in the temporary storage area, and print it:
 
