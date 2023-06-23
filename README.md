@@ -16,8 +16,9 @@ There are three registers which are used, internally:
 
 * Any time a number is encountered it is moved into a scratch-area.
   * This is notionally known as the accumulator register.
-* It is possible to move the accumulator value into the IO-register, `#`.
+* It is possible to move the accumulator value into the IO-register, U.
   * This register contains the port-number that any I/O read, or write, operation is applied to.
+  * Not a great mnemonic, but close to both I&O on the keyboard.
 * It is possible to move the accumulator value into the memory-register, M.
   * This register specifies the RAM address of any memory read/write operations.
 * Finally you may move the contents of the accumulator into the K-register, which is used for operating loops.
@@ -25,7 +26,7 @@ There are three registers which are used, internally:
 TLDR:
 
 * Numbers go to A-Register.
-* Port I/O is controlled by the #-register.
+* Port I/O is controlled by the U-register.
 * RAM read/write is controlled by the M-register.
 * Loops are controlled by the K-register.
 
@@ -40,8 +41,10 @@ The following instructions are available:
   * Ignored.
 * `{..}`
   * Looping construct, see below for details.
-* `#`
+* `u`
   * Set the I/O-port to be the value of the accumulator.
+* `U`
+  * Set the accumulator to be the value of the I/O-port.
 * `_`
   * Print the string wrapped by by "_" characters.
 * `c`
@@ -52,7 +55,7 @@ The following instructions are available:
   * HALT for the number of times specified in the storage-area.
   * This is used for running delay operations.
 * `i`
-  * Read a byte of input, from the currently selected I/O port (#-register), and place it in the accumulator.
+  * Read a byte of input, from the currently selected I/O port (U-register), and place it in the accumulator.
 * `k`
   * Copy the contents of the accumulator (lower half) into the K-register.
 * `K`
@@ -62,7 +65,7 @@ The following instructions are available:
 * `n`
   * Write a newline character.
 * `o`
-  * Write the contents of the accumulator to the currently selected I/O port (held in the #-register).
+  * Write the contents of the accumulator to the currently selected I/O port (held in the U-register).
 * `p`
   * Print the value of the accumulator, as a four-digit hex number.
 * `P`
@@ -144,24 +147,24 @@ c 42 x
 Configure the I/O port to be port 0x01, read a byte from it to the temporary storage area, then print that value:
 
 ```
-c 1 # i p
+c 1 u i p
 ```
 
 Write the byte 32, then the byte 77, to the I/O port 3.
 
 ```
-c 3 # c 32 o c 77 o
+c 3 u c 32 o c 77 o
 ```
 
 To be more explicit that last example could have been written as:
 
-* `c3#c32oc77o`
-  * `c3` - Clear the storage area, and write the number 3 to it.
-  * `#` - Set the I/O port to be used for (i)nput and (o)utput to be the value in the temporary storage-area, i.e. 3.
-  * `c32` - Clear the storage area, and write the number 32 to it.
-  * `o` - Output the byte in the storage area (32) to the currently selected I/O port (3)
-  * `c77` - Clear the storage area, and write the number 77 to it.
-  * `o` - Output the byte in the storage area (77) to the currently selected I/O port (3)
+* `c3uc32oc77o`
+  * `c3` - Clear the accumulator, and write the number 3 to it.
+  * `u` - Set the I/O port to be used for (i)nput and (o)utput to be the value in the accumulator, i.e. 3.
+  * `c32` - Clear the accumulator, and write the number 32 to it.
+  * `o` - Output the byte in the accumulator (32) to the currently selected I/O port (3)
+  * `c77` - Clear the accumulator, and write the number 77 to it.
+  * `o` - Output the byte in the accumulator (77) to the currently selected I/O port (3)
 
 
 

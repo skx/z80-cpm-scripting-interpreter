@@ -329,8 +329,10 @@ not_output_newline:
         jr z, digit
 
         ;; Is this an I/O port flag?
-        cp '#'
+        cp 'u'
         jp z, io_port_set
+        cp 'U'
+        jp z, io_port_get
 
         ;; Is this string output?
         cp '_'
@@ -703,15 +705,29 @@ delay_operation_loop:
 
 
 ;;
-;; Called if we've been given "#" in the input.
+;; Called if we've been given "u" in the input.
 ;;
-;; Update the current I/O port, with the contents of the storage-area
+;; Update the current I/O port, with the contents of the accumulator.
 ;;
 io_port_set:
         PUSH_ALL
         ld hl, tmp_store+1
         ld a, (hl)
         ld hl, io_port
+        ld (hl),a
+        POP_ALL
+        jp interpret
+
+;;
+;; Called if we've been given "U", copy the U-register to the accumulator.
+;;
+io_port_get:
+        PUSH_ALL
+        ld hl, io_port
+        ld a,(hl)
+        ld hl, tmp_store
+        ld (hl), 0
+        inc hl
         ld (hl),a
         POP_ALL
         jp interpret
