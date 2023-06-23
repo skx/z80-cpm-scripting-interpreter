@@ -337,6 +337,10 @@ interpret:
         cp 'K'
         jp z, k_register_get
 
+        ;; is this a loop?
+        cp '{'
+        jp z, k_register_loop
+
         ;; If we got here we found a character we can't understand
         ;; Show that, and abort
         ld de, error_character_msg
@@ -726,6 +730,61 @@ k_register_get:
         ld (hl),a
         POP_ALL
         jp interpret
+
+;;
+;; Called to handle a loop.
+;;
+k_register_loop:
+        ;;
+        ;; Given input "4k{_Hello ...}"
+        ;;
+        ;; HL points to the character after the loop-start so "_" in our case.
+        ;;
+        ;; If the value of the K register is zero we move HL to the
+        ;; value after } and return.
+        ;;
+        ;; Otherwise we decrement K-register, and have to run the sub-body.
+        ;;
+        ;; NOTE: No nesting of loops
+        ;;
+        push hl
+        ld hl, k_register
+        ld a,(hl)
+        pop hl
+
+        cp 0
+        jr z, loop_time_over
+
+        ;; handle loop-body
+        ;;  Decrease K
+        push hl
+        ld hl,k_register
+        dec (hl)
+        pop hl
+
+        ;;  Run the loop-body
+        ;;    - By copying to a backup input buffer.
+        push hl
+
+        ;;; HL points to the loop body
+        ;;; Copy to input_loop
+        ;;; Until we hit }
+        ;;; CALL interpreter
+        ;;;
+
+        pop hl
+
+        ;; Go back to the start of the loop.
+        dec hl
+        jp interpret
+
+loop_time_over:
+        ld a, (hl)
+        inc hl
+        cp '}'
+        jp z, interpret
+        jr loop_time_over
+
 
 ;;
 ;; Called when we see "_hello, world_"
