@@ -2,15 +2,18 @@
 
 This is a trivial REPL-based "scripting thing", designed to run on Z80-based CP/M systems.
 
-The REPL allows arbitrary I/O to ports, but little else - for usefulness the currently-selected I/O port is displayed in the REPL prompt.
+The REPL allows arbitrary I/O to ports, and RAM, but little else - for usefulness the currently-selected I/O port is displayed in the REPL prompt.
 
-All-told the interpreter, when compiled as REPL, takes about 500 bytes.
+All-told the interpreter, when compiled as REPL, takes about 700 bytes.
 
 
 
 ## Overview
 
-This is like a stack-based language, using single-characters to define operations.  However there is not actually a stack - just a single location which can be used to store a value.
+This is like a stack-based language, using single-characters to define operations.  However there is not actually a stack - just a single location which can be used to store a value, and two storage-areas for dedicated port and memory-based I/O:
+
+* There is a "variable" which is used to set the port number to use for all port-based I/O (set with "`#`").,
+* There is a variable which is used to specify which address to read/write to in RAM (set with "`M`").
 
 The storage-location is used for almost all instructions, and might be considered like an accumulator-register.
 
@@ -27,14 +30,22 @@ The following instructions are available:
   * Set I/O to use the port in the storage-area.
 * `c`
   * Clear the number in the storage-area.  (i.e. Set to zero).
+* `g`
+  * Perform a CALL instruction to the currently selected RAM address.
 * `i`
   * Read a byte of input, from the currently selected I/O port, and place it in the storage-area
+* `m`
+  * Write the contents of the storage-area to the currently selected RAM address.
 * `o`
   * Write the contents of the storage-area to the currently selected I/O port.
 * `p`
   * Print the number in the storage-area.
+* `r`
+  * Read the contents of the currently selected RAM address, and save in the storage-area.  Increment the RAM address.
 * `q`
   * Quit, if we're in REPL-mode.
+* `w`
+  * Write the contents of the storage-area (lower byte only) to the currently selected RAM address. Increment the RAM address.
 * `x`
   * Print the character whos ASCII code is stored in the storage-area
 
@@ -50,6 +61,14 @@ Store the value 42 in the temporary storage area, and print it:
 ```
 c 42 p
 ```
+
+
+Store the value "201" (opcode for RET) at address 20000, and JMP to it, this will call RET which will exit to CP/M:
+
+```
+20000 m 201 w 20000 m g
+```
+
 
 Store the value 42 in the temporary storage area, then print that as if it were the ASCII code of a character (output "`*`"):
 
