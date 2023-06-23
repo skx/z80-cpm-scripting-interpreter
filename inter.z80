@@ -107,6 +107,11 @@ MACRO POP_ALL
       ORG 0x100
 
       ;
+      ; Perform the init required
+      ;
+      call bios_init
+
+      ;
       ; We can be built as a REPL, or as a test-driver.
       ;
 IF REPL
@@ -119,10 +124,10 @@ repl_loop:
       ; Fill input-buffer with NULL
       ld hl, input_buffer+2
       ld bc, 200
-repl_loop_reset:
+repl_loop_reset_input:
       ld (hl), 0x00
       inc hl
-      djnz repl_loop_reset
+      djnz repl_loop_reset_input
 
       ; The start of the prompt
       ld a, 0x0a
@@ -147,13 +152,10 @@ repl_loop_reset:
 
 
       ;
-      ; Read input - 200 bytes, starting at the input-buffer
+      ; Read input from the user.
       ;
       ld de, input_buffer
-      ld a, 200
-      ld (de),a
-      ld c, 0x0A
-      call 0x005
+      call bios_input_line
 
       ;
       ; Print a newline
@@ -339,8 +341,7 @@ interpret:
 ;;
 quit:
 IF REPL
-        ld c, 0x0
-        call 0x0005
+        call bios_exit
 ENDIF
         jp interpret
 
@@ -665,32 +666,6 @@ output_stack_char:
         jp interpret
 
 
-;;
-;; Output a single character
-;;
-;; Input - the character to print in A
-;;
-bios_output_character:
-        PUSH_ALL
-        ld e, a
-        ld c, 0x02
-        call 0x005
-        POP_ALL
-        ret
-
-;;
-;; Output a string
-;;
-;; Inputs - the string to print in DE, terminated with "$".
-;;
-bios_output_string:
-        PUSH_ALL
-        ld c, 0x09
-        call 0x005
-        POP_ALL
-        ret
-
-
 ;
 ; Display the contents of HL as a hexadecimal number.
 ;
@@ -759,6 +734,9 @@ Conv:
         call bios_output_character
         ret
 
+
+
+include "bios.z80"
 
 ;;
 ;; The string we interpret

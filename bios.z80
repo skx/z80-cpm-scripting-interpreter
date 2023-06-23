@@ -1,0 +1,62 @@
+
+
+;;
+;; Exit the program
+;;
+;; Inputs: None.
+;;
+bios_exit:
+        ld c, 0x00
+        call 0x0005
+        ret  ; Not reached
+
+;;
+;; BIOS input a string to a buffer
+;;
+;; DE is passed to a buffer of memory:
+;;
+;;  First byte says how long the buffer is
+;;  Second byte will be updated with the length of the read string
+;;  All other bytes will be the input
+;;
+;; This will be hard to port, because I can't write it in terms of a
+;; single-character input loop; CP/M has no notion of single byte input
+;;
+;; However for reference you can see what I did in the ZX Spectrum here:
+;;
+;;   https://github.com/skx/lighthouse-of-doom/blob/b0a374074b3d4e225f0f4b68b7d6a6d9dd2ea7a5/bios.z80#L225
+;;
+bios_input_line:
+        ; We're passed a buffer, and the first byte is the size to read
+        ; We arbitrarily say 200 bytes.
+        ld a, 200
+        ld (de),a
+        ld c, 0x0A
+        call 0x005
+        ret
+
+
+
+;; Output a single character
+;;
+;; Input - the character to print in A
+;;
+bios_output_character:
+        PUSH_ALL
+        ld e, a
+        ld c, 0x02
+        call 0x005
+        POP_ALL
+        ret
+
+;;
+;; Output a string
+;;
+;; Inputs - the string to print in DE, terminated with "$".
+;;
+bios_output_string:
+        PUSH_ALL
+        ld c, 0x09
+        call 0x005
+        POP_ALL
+        ret
