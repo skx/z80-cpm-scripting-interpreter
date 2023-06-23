@@ -39,7 +39,7 @@ The following instructions are available:
 * `[ \t\n]`
   * Ignored.
 * `#`
-  * Set I/O to use the port in the storage-area.
+  * Set the I/O-port to be the value of the accumulator.
 * `c`
   * Clear the number in the accumulator.  (i.e. Set to zero).
 * `g`
@@ -49,12 +49,18 @@ The following instructions are available:
   * This is used for running delay operations.
 * `i`
   * Read a byte of input, from the currently selected I/O port (#-register), and place it in the accumulator.
+* `k`
+  * Copy the contents of the accumulator (lower half) into the K-register.
+* `K`
+  * Copy the contents of the K-register to the accumulator.
 * `m`
   * Write the contents of the accumulator to the currently selected RAM address (in the M-register).
 * `o`
   * Write the contents of the accumulator to the currently selected I/O port (held in the #-register).
 * `p`
-  * Print the value of the accumulator.
+  * Print the value of the accumulator, as a four-digit hex number.
+* `P`
+  * Print the value of the lower half of the accumulator, as a two-digit hex number.
 * `r`
   * Read the contents of the currently selected RAM address, held in the M-register), and save in the accumulator.
   * Then increment the RAM address held in the M-register (so that repeats will read from incrementing addresses).

@@ -30,9 +30,12 @@
 ;;   i:  Read a byte of input, from the selected I/O port, and place it in the storage-area
 ;;   g:  Read the stored value of the memory address, and CALL it.
 ;;   h:  Halt for the number of times specified in the storage-area.
+;;   k:  Copy the accumulator to the k-register.
+;;   K:  Copy the k-register to the accumulator.
 ;;   m:  Set the memory address to read/write to from the contents of the temporary storage area
 ;;   o:  Write the contents of the storage-area to the I/O port selected.
-;;   p:  Print the number in the storage-area
+;;   p:  Print the four-digit value held in the accumulator.
+;;   P:  Print the two-digit value held in the lower half of the accumulator.
 ;;   q:  Quit, if we're in REPL-mode
 ;;   r:  Read the contents of the memory-address, and place in the storage area.
 ;;   w:  Write the contents of the storage-area (byte) to the selected memory address.
@@ -266,7 +269,9 @@ interpret:
         ;; Is it a P?
         ;;
         cp 'p'
-        jp z, print_stack
+        jp z, print_accumulator_full
+        cp 'P'
+        jp z, print_accumulator_bottom
 
         ;;
         ;; Q will quit
@@ -316,6 +321,14 @@ interpret:
         ;; Is this an I/O port flag?
         cp '#'
         jp z, io_port_set
+
+        ;; Is this an K-register set?
+        cp 'k'
+        jp z, k_register_set
+
+        ;; Is this an K-register get?
+        cp 'K'
+        jp z, k_register_get
 
         ;; If we got here we found a character we can't understand
         ;; Show that, and abort
@@ -605,11 +618,9 @@ io_port_out:
 
 ;;
 ;; Called if we've got a P in the input; show the contents of the temporary
-;; store, as decimal number.
+;; store, as a four-digit hex number.
 ;;
-;; NOTE: Shows five digits..
-;;
-print_stack:
+print_accumulator_full:
         PUSH_ALL
         ld hl, tmp_store
         ld a, (hl)
@@ -617,6 +628,21 @@ print_stack:
         ld l, (hl)
         ld h, a
         call DisplayHLAsHex
+
+        ; newline after the output
+        ld a, 0x0A
+        call bios_output_character
+
+        POP_ALL
+        jp interpret
+
+
+;;
+print_accumulator_bottom:
+        PUSH_ALL
+        ld hl, tmp_store+1
+        ld c, (hl)
+        call output_8_bit_number
 
         ; newline after the output
         ld a, 0x0A
@@ -661,6 +687,35 @@ io_port_set:
         ld hl, tmp_store+1
         ld a, (hl)
         ld hl, io_port
+        ld (hl),a
+        POP_ALL
+        jp interpret
+
+
+;;
+;; Called if we've been given "k", copy the accumulator into the k-register
+;;
+k_register_set:
+        PUSH_ALL
+        ld hl, tmp_store+1
+        ld a, (hl)
+        ld hl, k_register
+        ld (hl),a
+        POP_ALL
+        jp interpret
+
+
+
+;;
+;; Called if we've been given "K", copy the k-register to the accumulator.
+;;
+k_register_get:
+        PUSH_ALL
+        ld hl, k_register
+        ld a,(hl)
+        ld hl, tmp_store
+        ld (hl), 0
+        inc hl
         ld (hl),a
         POP_ALL
         jp interpret
@@ -774,6 +829,14 @@ tmp_store:
 ;;
 io_port:
         DB 0x00
+
+
+;;
+;; K-register is used for loop operations.
+;;
+k_register:
+        DB 0x00
+
 
 
 ;;
