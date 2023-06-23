@@ -25,18 +25,23 @@
 ;;; Valid inputs:
 ;;
 ;; 0-9:  Build up a number
-;;   #:  Set I/O to use the port in the storage-area
-;;   c:  Clear the number in the storage-area
-;;   i:  Read a byte of input, from the selected I/O port, and place it in the storage-area
+;;   #:  Set the I/O register to be the contents of the accumulator.
+;;   c:  Clear the accumulator.
+;;   i:  Read a byte of input, from the selected I/O port, and place it in the accumulator.
 ;;   g:  Read the stored value of the memory address, and CALL it.
-;;   h:  Halt for the number of times specified in the storage-area.
-;;   m:  Set the memory address to read/write to from the contents of the temporary storage area
-;;   o:  Write the contents of the storage-area to the I/O port selected.
-;;   p:  Print the number in the storage-area
+;;   h:  Halt for the number of times specified in the accumulator.
+;;   k:  Copy the accumulator to the k-register.
+;;   K:  Copy the k-register to the accumulator.
+;;   m:  Set the memory address to read/write to from the contents of the accumulator.
+;;   n:  Write a newline.
+;;   o:  Write the contents of the accumulator to the I/O port selected.
+;;   p:  Print the four-digit value held in the accumulator.
+;;   P:  Print the two-digit value held in the lower half of the accumulator.
 ;;   q:  Quit, if we're in REPL-mode
 ;;   r:  Read the contents of the memory-address, and place in the storage area.
 ;;   w:  Write the contents of the storage-area (byte) to the selected memory address.
-;;   x:  Print the character whos ASCII code is stored in the storage-area
+;;   x:  Print the character whos ASCII code is stored in the accumulator.
+;;   _:  Print the string contained between "_" and "_".
 ;; " ":  Whitespace is skipped over
 ;;
 ;; All other inputs are ignored.
@@ -44,12 +49,14 @@
 
 ;;; TODO
 ;;
+;;  - Nested loops wouldn't be impossible.
+;;
 ;;  - Allow either stack operations, or the use of named variables
 ;;    - A single "temporary area" is too limiting.
 ;;
 ;;  - Add "+", "-", etc.
 ;;
-;;  - Allow conditionals, or loops, of some kind.
+;;  - Allow conditionals of some kind.  []
 ;;
 
 ;;; Sample code
@@ -131,10 +138,7 @@ repl_loop_reset_input:
       djnz repl_loop_reset_input
 
       ; The start of the prompt
-      ld a, 0x0a
-      call bios_output_character
-      ld a, 0x0d
-      call bios_output_character
+      call output_newline
       ld a, '['
       call bios_output_character
 
@@ -161,8 +165,7 @@ repl_loop_reset_input:
       ;
       ; Print a newline
       ;
-      ld a, 0x0A
-      call bios_output_character
+      call output_newline
 
       ;
       ; Now interpret the string
@@ -257,6 +260,16 @@ interpret:
         jp z, ram_set
 
         ;;
+        ;; Write a newline
+        ;;
+        cp 'n'
+        jp nz, not_output_newline
+
+        call output_newline
+        jr interpret
+
+not_output_newline:
+        ;;
         ;; Is it an O?
         ;;
         cp 'o'
@@ -266,7 +279,9 @@ interpret:
         ;; Is it a P?
         ;;
         cp 'p'
-        jp z, print_stack
+        jp z, print_accumulator_full
+        cp 'P'
+        jp z, print_accumulator_bottom
 
         ;;
         ;; Q will quit
@@ -314,8 +329,31 @@ interpret:
         jr z, digit
 
         ;; Is this an I/O port flag?
-        cp '#'
+        cp 'u'
         jp z, io_port_set
+        cp 'U'
+        jp z, io_port_get
+
+        ;; Is this string output?
+        cp '_'
+        jp z, string_output
+
+        ;; Is this an K-register set?
+        cp 'k'
+        jp z, k_register_set
+
+        ;; Is this an K-register get?
+        cp 'K'
+        jp z, k_register_get
+
+        ;; is this a loop?
+        cp '{'
+        jp z, k_register_loop
+
+        ;; is this the end of a loop?
+        cp '}'
+        jp z, k_register_loop_again
+
 
         ;; If we got here we found a character we can't understand
         ;; Show that, and abort
@@ -583,6 +621,16 @@ io_port_in:
         jp interpret
 
 ;;
+;; Called via 'n', which writes a newline
+;;
+output_newline:
+        ld a, 0x0A
+        call bios_output_character
+        ld a, 0x0D
+        call bios_output_character
+        ret
+
+;;
 ;; Called if we've got an O in the input, perform an I/O write.
 ;;
 ;; The temporary storage area will have the byte to write.
@@ -605,11 +653,9 @@ io_port_out:
 
 ;;
 ;; Called if we've got a P in the input; show the contents of the temporary
-;; store, as decimal number.
+;; store, as a four-digit hex number.
 ;;
-;; NOTE: Shows five digits..
-;;
-print_stack:
+print_accumulator_full:
         PUSH_ALL
         ld hl, tmp_store
         ld a, (hl)
@@ -618,9 +664,16 @@ print_stack:
         ld h, a
         call DisplayHLAsHex
 
-        ; newline after the output
-        ld a, 0x0A
-        call bios_output_character
+        POP_ALL
+        jp interpret
+
+
+;;
+print_accumulator_bottom:
+        PUSH_ALL
+        ld hl, tmp_store+1
+        ld c, (hl)
+        call output_8_bit_number
 
         POP_ALL
         jp interpret
@@ -652,9 +705,9 @@ delay_operation_loop:
 
 
 ;;
-;; Called if we've been given "#" in the input.
+;; Called if we've been given "u" in the input.
 ;;
-;; Update the current I/O port, with the contents of the storage-area
+;; Update the current I/O port, with the contents of the accumulator.
 ;;
 io_port_set:
         PUSH_ALL
@@ -665,6 +718,123 @@ io_port_set:
         POP_ALL
         jp interpret
 
+;;
+;; Called if we've been given "U", copy the U-register to the accumulator.
+;;
+io_port_get:
+        PUSH_ALL
+        ld hl, io_port
+        ld a,(hl)
+        ld hl, tmp_store
+        ld (hl), 0
+        inc hl
+        ld (hl),a
+        POP_ALL
+        jp interpret
+
+
+;;
+;; Called if we've been given "k", copy the accumulator into the k-register
+;;
+k_register_set:
+        PUSH_ALL
+        ld hl, tmp_store+1
+        ld a, (hl)
+        ld hl, k_register
+        ld (hl),a
+        POP_ALL
+        jp interpret
+
+
+
+;;
+;; Called if we've been given "K", copy the k-register to the accumulator.
+;;
+k_register_get:
+        PUSH_ALL
+        ld hl, k_register
+        ld a,(hl)
+        ld hl, tmp_store
+        ld (hl), 0
+        inc hl
+        ld (hl),a
+        POP_ALL
+        jp interpret
+
+;;
+;; Called to handle a loop.
+;;
+k_register_loop:
+        ;;
+        ;; Given input "4k{_Hello ...}"
+        ;;
+        ;; HL points to the character after the loop-start so "_" in our case.
+        ;;
+        ;; If the value of the K register is zero we move HL to the
+        ;; value after } and return.
+        ;;
+        ;; Otherwise we decrement K-register, and have to run the sub-body.
+        ;;
+        ;; NOTE: No nesting of loops
+        ;;
+        push hl
+        ld hl, k_register
+        ld a,(hl)
+        pop hl
+
+        cp 0
+        jr z, loop_time_over
+
+        ;;  Decrease K - so that the iteration will eventually end.
+        push hl
+        ld hl,k_register
+        dec (hl)
+        pop hl
+
+        ;; Now we're inside the loop-body, and we want to run it.
+        ;; so we can just jump back to the interpreter.
+        jp interpret
+
+
+        ;; Skip the loop, by going forward to the closing character
+        ;;
+        ;; TODO / FIXME: We could count open braces to allow nested loops...
+loop_time_over:
+        ld a, (hl)
+        inc hl
+        cp '}'
+        jp z, interpret
+        jr loop_time_over
+
+
+;;
+;; Called at loop-close time, when a } is seen
+;;
+;; We have HL pointing to the character after the loop, and we
+;; want to change it to point back to the start of the loop.
+;;
+;; TODO / FIXME: We could count brace-pairs to allow nested loops
+;;
+k_register_loop_again:
+        ld a, (hl)
+        cp '{'
+        jp z, interpret
+        dec hl
+        jr k_register_loop_again
+
+;;
+;; Called when we see "_hello, world_"
+;;
+string_output:
+        ld a,(hl)
+        cp '_'
+        jr z, string_output_over
+        call bios_output_character
+        inc hl
+        jr string_output
+string_output_over:
+        inc hl
+        jp interpret
 
 ;;
 ;; called if we've got an X in the input
@@ -673,7 +843,7 @@ io_port_set:
 ;;
 output_stack_char:
         PUSH_ALL
-        ld hl, tmp_store
+        ld hl, tmp_store+1
         ld a, (hl)
         call bios_output_character
         POP_ALL
@@ -736,7 +906,7 @@ output_8_bit_number:
         rra
         rra
         rra
-        call  Conv
+        call Conv
         ld  a,c
 Conv:
         and  $0F
@@ -753,10 +923,10 @@ Conv:
 include "bios.z80"
 
 ;;
-;; The string we interpret
+;; The string we interpret when not in REPL mode.
 ;;
 sample_str:
-        DB "p c123pc42xxxxc72xc73xc10xc72xc73xc10x"
+        DB "10k{Kp_ OK!_n}"
         DB 0x00
 
 ;;
@@ -774,6 +944,14 @@ tmp_store:
 ;;
 io_port:
         DB 0x00
+
+
+;;
+;; K-register is used for loop operations.
+;;
+k_register:
+        DB 0x00
+
 
 
 ;;
