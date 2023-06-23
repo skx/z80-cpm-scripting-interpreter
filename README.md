@@ -4,7 +4,7 @@ This is a trivial REPL-based "scripting thing", designed to run on Z80-based CP/
 
 The REPL allows arbitrary I/O to ports, and RAM, but little else - for usefulness the currently-selected I/O port is displayed in the REPL prompt.
 
-All-told the interpreter, when compiled as REPL, takes about 700 bytes.
+All-told the interpreter, when compiled as REPL, takes less than 750 bytes.
 
 
 
