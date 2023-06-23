@@ -8,7 +8,10 @@
 ;; We're not really a stack-language, we have a single location which
 ;; can be used to store a number, and in the future that can be used
 ;; for various things.  There is support for I/O to/from arbitrary ports,
-;; and when the REPL is used the currently selected I/O port is shown in
+;; as well as a RAM reading/writing - both of these use a dedicated storage
+;; helper to hold the value to use for input or output.
+;;
+;; When the REPL is used the currently selected I/O port is shown in
 ;; the prompt.
 ;;
 
@@ -25,9 +28,13 @@
 ;;   #:  Set I/O to use the port in the storage-area
 ;;  cC:  Clear the number in the storage-area
 ;;  iI:  Read a byte of input, from the selected I/O port, and place it in the storage-area
+;;  gG:  Read the stored value of the memory address, and CALL it.
+;;  mM:  Set the memory address to read/write to from the contents of the temporary storage area
 ;;  oO:  Write the contents of the storage-area to the I/O port selected.
 ;;  pP:  Print the number in the storage-area
 ;;  qQ:  Quit, if we're in REPL-mode
+;;  rR:  Read the contents of the memory-address, and place in the storage area.
+;;  wW:  Write the contents of the storage-area (byte) to the selected memory address.
 ;;  xX:  Print the character whos ASCII code is stored in the storage-area
 ;; " ":  Whitespace is skipped over
 ;;
@@ -215,12 +222,36 @@ interpret:
         jr z, interpret
 
         ;;
+        ;; Is it a C?
+        ;;
+        cp 'c'
+        jp z, clear_stack
+        cp 'C'
+        jp z, clear_stack
+
+        ;;
+        ;; Is it a G?
+        ;;
+        cp 'g'
+        jp z, ram_call
+        cp 'G'
+        jp z, ram_call
+
+        ;;
         ;; Is it an I?
         ;;
         cp 'i'
         jp z, io_port_in
         cp 'I'
         jp z, io_port_in
+
+        ;;
+        ;; Is it an M?
+        ;;
+        cp 'm'
+        jp z, ram_set
+        cp 'M'
+        jp z, ram_set
 
         ;;
         ;; Is it an O?
@@ -246,12 +277,18 @@ interpret:
         jr z,quit
 
         ;;
-        ;; Is it a C?
+        ;; Is it a R?
+        cp 'r'
+        jp z, ram_read
+        cp 'R'
+        jp z, ram_read
+
         ;;
-        cp 'c'
-        jp z, clear_stack
-        cp 'C'
-        jp z, clear_stack
+        ;; Is it a W?
+        cp 'w'
+        jp z, ram_write
+        cp 'W'
+        jp z, ram_write
 
         ;;
         ;; Is it a X?
@@ -413,6 +450,125 @@ clear_stack:
         ld (hl), 0x00
         POP_ALL
         jp interpret
+
+
+;;
+;; Called if we've got M; set the memory address to read/write
+;;
+ram_set:
+        PUSH_ALL
+        ; dl = temporary store value
+        ld hl, tmp_store
+        ld d,(hl)
+        inc hl
+        ld e, (hl)
+
+        ; now set that
+        ld hl, ram_address
+        ld (hl), d
+        inc hl
+        ld (hl), e
+
+        POP_ALL
+        jp interpret
+
+
+;;
+;; Called if we've got a G in the input, call the address stored
+;; in the memory register.
+;;
+ram_call:
+        PUSH_ALL
+        ; get the ram address to read in HL
+        ld hl, ram_address
+        ld a, (hl)
+        inc hl
+        ld l, (hl)
+        ld h,a
+
+        ; call it
+        push hl
+        ret
+
+        ; restore
+        POP_ALL
+        ret
+
+;;
+;; Called if we've got an R in the input, perform a RAM read.
+;;
+;; Store the result in the temporary storage area, and increment the
+;; RAM address
+;;
+ram_read:
+        PUSH_ALL
+        ; get the ram address to read in HL
+        ld hl, ram_address
+        ld a, (hl)
+        inc hl
+        ld l, (hl)
+        ld h,a
+
+        ; read the content
+        ld a, (hl)
+
+        ; store in temporary area
+        ld hl, tmp_store
+        ld (hl), 0x00
+        inc hl
+        ld (hl), a
+
+        ; Increment the adddress.
+        ld hl, ram_address
+        ld d, (hl)
+        inc hl
+        ld e, (hl)
+        inc de
+        ld hl, ram_address
+        ld (hl), d
+        inc hl
+        ld (hl), e
+
+        POP_ALL
+        jp interpret
+
+
+;;
+;; called if we've got a W in the input, write to the memory address
+;; stored in the memory-area.
+;;
+ram_write:
+        PUSH_ALL
+        ; get the ram address to write in HL
+        ld hl, ram_address
+        ld a, (hl)
+        inc hl
+        ld l, (hl)
+        ld h,a
+
+        ; get the value to write in A
+        push hl
+        ld hl, tmp_store+1
+        ld a,(hl)
+        pop hl
+
+        ; Write now.
+        ld (hl),a
+
+        ; Increment the adddress.
+        ld hl, ram_address
+        ld d, (hl)
+        inc hl
+        ld e, (hl)
+        inc de
+        ld hl, ram_address
+        ld (hl), d
+        inc hl
+        ld (hl), e
+
+        POP_ALL
+        jp interpret
+
 
 ;;
 ;; Called if we've got an I in the input, perform an I/O read
@@ -625,6 +781,14 @@ tmp_store:
 ;; I/O port which is currently selected
 ;;
 io_port:
+        DB 0x00
+
+
+;;
+;; RAM address which is to be used for reading/writing.
+;;
+ram_address:
+        DB 0x00
         DB 0x00
 
 
