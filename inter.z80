@@ -33,6 +33,7 @@
 ;;   k:  Copy the accumulator to the k-register.
 ;;   K:  Copy the k-register to the accumulator.
 ;;   m:  Set the memory address to read/write to from the contents of the temporary storage area
+;;   n:  Write a newline.
 ;;   o:  Write the contents of the storage-area to the I/O port selected.
 ;;   p:  Print the four-digit value held in the accumulator.
 ;;   P:  Print the two-digit value held in the lower half of the accumulator.
@@ -54,8 +55,6 @@
 ;;  - Add "+", "-", etc.
 ;;
 ;;  - Allow conditionals of some kind.  []
-
-;;  - Allow loops, using the k-register. {}
 ;;
 
 ;;; Sample code
@@ -263,6 +262,12 @@ interpret:
         jp z, ram_set
 
         ;;
+        ;; Write a newline
+        ;;
+        cp 'n'
+        jp z, output_newline
+
+        ;;
         ;; Is it an O?
         ;;
         cp 'o'
@@ -340,6 +345,11 @@ interpret:
         ;; is this a loop?
         cp '{'
         jp z, k_register_loop
+
+        ;; is this the end of a loop?
+        cp '}'
+        jp z, k_register_loop_again
+
 
         ;; If we got here we found a character we can't understand
         ;; Show that, and abort
@@ -607,6 +617,14 @@ io_port_in:
         jp interpret
 
 ;;
+;; Called via 'n', which writes a newline
+;;
+output_newline:
+        ld a, 0x0A
+        call bios_output_character
+        jp interpret
+
+;;
 ;; Called if we've got an O in the input, perform an I/O write.
 ;;
 ;; The temporary storage area will have the byte to write.
@@ -640,10 +658,6 @@ print_accumulator_full:
         ld h, a
         call DisplayHLAsHex
 
-        ; newline after the output
-        ld a, 0x0A
-        call bios_output_character
-
         POP_ALL
         jp interpret
 
@@ -654,10 +668,6 @@ print_accumulator_bottom:
         ld hl, tmp_store+1
         ld c, (hl)
         call output_8_bit_number
-
-        ; newline after the output
-        ld a, 0x0A
-        call bios_output_character
 
         POP_ALL
         jp interpret
@@ -755,29 +765,20 @@ k_register_loop:
         cp 0
         jr z, loop_time_over
 
-        ;; handle loop-body
-        ;;  Decrease K
+        ;;  Decrease K - so that the iteration will eventually end.
         push hl
         ld hl,k_register
         dec (hl)
         pop hl
 
-        ;;  Run the loop-body
-        ;;    - By copying to a backup input buffer.
-        push hl
-
-        ;;; HL points to the loop body
-        ;;; Copy to input_loop
-        ;;; Until we hit }
-        ;;; CALL interpreter
-        ;;;
-
-        pop hl
-
-        ;; Go back to the start of the loop.
-        dec hl
+        ;; Now we're inside the loop-body, and we want to run it.
+        ;; so we can just jump back to the interpreter.
         jp interpret
 
+
+        ;; Skip the loop, by going forward to the closing character
+        ;;
+        ;; TODO / FIXME: We could count open braces to allow nested loops...
 loop_time_over:
         ld a, (hl)
         inc hl
@@ -785,6 +786,21 @@ loop_time_over:
         jp z, interpret
         jr loop_time_over
 
+
+;;
+;; Called at loop-close time, when a } is seen
+;;
+;; We have HL pointing to the character after the loop, and we
+;; want to change it to point back to the start of the loop.
+;;
+;; TODO / FIXME: We could count brace-pairs to allow nested loops
+;;
+k_register_loop_again:
+        ld a, (hl)
+        cp '{'
+        jp z, interpret
+        dec hl
+        jr k_register_loop_again
 
 ;;
 ;; Called when we see "_hello, world_"
@@ -870,7 +886,7 @@ output_8_bit_number:
         rra
         rra
         rra
-        call  Conv
+        call Conv
         ld  a,c
 Conv:
         and  $0F

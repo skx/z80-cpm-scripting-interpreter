@@ -2,9 +2,9 @@
 
 This is a trivial REPL-based "scripting thing", designed to run on Z80-based CP/M systems.
 
-The REPL allows arbitrary I/O to ports, and RAM, but little else - for usefulness the currently-selected I/O port is displayed in the REPL prompt.
+The REPL allows arbitrary I/O to ports, and RAM, along with string output and looping-support, but there is little else - for usefulness the currently-selected I/O port is displayed in the REPL prompt.
 
-All-told the interpreter, when compiled as REPL, takes less than 750 bytes.
+All-told the interpreter, when compiled as REPL, requires approximately 800 bytes.
 
 
 
@@ -15,11 +15,11 @@ This repository contains a simple REPL-based interpreter which will run upon a C
 There are three registers which are used, internally:
 
 * Any time a number is encountered it is moved into a scratch-area.
-  * This is notionally the accumulator register.
-* It is possible to move the accumulator value into the IO-register.
+  * This is notionally known as the accumulator register.
+* It is possible to move the accumulator value into the IO-register, `#`.
   * This register contains the port-number that any I/O read, or write, operation is applied to.
 * It is possible to move the accumulator value into the memory-register, M.
-  * This register contains the RAM address of any memory read/write operations.
+  * This register specifies the RAM address of any memory read/write operations.
 * Finally you may move the contents of the accumulator into the K-register, which is used for operating loops.
 
 TLDR:
@@ -38,6 +38,8 @@ The following instructions are available:
   * Build up a number, which is stored in the temporary area.
 * `[ \t\n]`
   * Ignored.
+* `{..}`
+  * Looping construct, see below for details.
 * `#`
   * Set the I/O-port to be the value of the accumulator.
 * `_`
@@ -57,6 +59,8 @@ The following instructions are available:
   * Copy the contents of the K-register to the accumulator.
 * `m`
   * Write the contents of the accumulator to the currently selected RAM address (in the M-register).
+* `n`
+  * Write a newline character.
 * `o`
   * Write the contents of the accumulator to the currently selected I/O port (held in the #-register).
 * `p`
@@ -73,6 +77,36 @@ The following instructions are available:
   * Then increment the RAM address held in the M-register (so that repeats will write to incrementing addresses).
 * `x`
   * Print the character whos ASCII code is stored in the accumulator.
+
+
+
+## Looping
+
+The special K-register can be used to control how many times a loop will be carried out.
+
+Loops consist of code between `{` and `}` pairs.  For example the following program will show a countdown:
+
+```
+[00]>10k{Kp}
+0009
+0008
+0007
+0006
+0005
+0004
+0003
+0002
+0001
+0000
+```
+
+First of all the value 10 is loaded into the accumulator, then copied into the K-register.  The body of the loop is then:
+
+```
+Kp
+```
+
+K copies the contents of the loop-register back to the accumulator, which is then printed by the `p` command.
 
 
 ### Sample "Programs"
