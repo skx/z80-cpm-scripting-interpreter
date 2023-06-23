@@ -94,7 +94,6 @@
 MACRO PUSH_ALL
         push af
         push bc
-        push de
         push hl
       ENDM
 
@@ -104,7 +103,6 @@ MACRO PUSH_ALL
 ;
 MACRO POP_ALL
         pop hl
-        pop de
         pop bc
         pop af
       ENDM
@@ -228,6 +226,16 @@ interpret:
         jr z, interpret
 
         ;;
+        ;; Is this a numeric character?
+        ;;
+        cp '0'-1
+        jr c, not_number
+        cp '9'+1
+        jr nc, not_number
+        jp digit
+
+not_number:
+        ;;
         ;; Is it a C?
         ;;
         cp 'c'
@@ -303,30 +311,6 @@ not_output_newline:
         ;;
         cp 'x'
         jp z, output_stack_char
-
-        ;;
-        ;; Is it a digit?
-        ;;
-        cp '0'
-        jr z, digit
-        cp '1'
-        jr z, digit
-        cp '2'
-        jr z, digit
-        cp '3'
-        jr z, digit
-        cp '4'
-        jr z, digit
-        cp '5'
-        jr z, digit
-        cp '6'
-        jr z, digit
-        cp '7'
-        jr z, digit
-        cp '8'
-        jr z, digit
-        cp '9'
-        jr z, digit
 
         ;; Is this an I/O port flag?
         cp 'u'
