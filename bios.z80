@@ -1,4 +1,12 @@
 
+;;
+;; Init function
+;;
+;; Inputs: None.
+;;
+bios_init:
+        ret
+
 
 ;;
 ;; Exit the program
