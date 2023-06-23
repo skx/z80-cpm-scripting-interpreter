@@ -32,6 +32,9 @@ The following instructions are available:
   * Clear the number in the storage-area.  (i.e. Set to zero).
 * `g`
   * Perform a CALL instruction to the currently selected RAM address.
+* `h`
+  * HALT for the number of times specified in the storage-area.
+  * This is used for running delay operations.
 * `i`
   * Read a byte of input, from the currently selected I/O port, and place it in the storage-area
 * `m`
@@ -66,7 +69,7 @@ c 42 p
 Store the value "201" (opcode for RET) at address 20000, and JMP to it, this will call RET which will exit to CP/M:
 
 ```
-20000 m 201 w 20000 m g
+c 20000 m c 201 w 20000 m g
 ```
 
 

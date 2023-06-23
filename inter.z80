@@ -29,6 +29,7 @@
 ;;  cC:  Clear the number in the storage-area
 ;;  iI:  Read a byte of input, from the selected I/O port, and place it in the storage-area
 ;;  gG:  Read the stored value of the memory address, and CALL it.
+;;  hH:  Halt for the number of times specified in the storage-area.
 ;;  mM:  Set the memory address to read/write to from the contents of the temporary storage area
 ;;  oO:  Write the contents of the storage-area to the I/O port selected.
 ;;  pP:  Print the number in the storage-area
@@ -238,6 +239,14 @@ interpret:
         jp z, ram_call
         cp 'G'
         jp z, ram_call
+
+        ;;
+        ;; Is it a H?
+        ;;
+        cp 'h'
+        jp z, delay_operation
+        cp 'H'
+        jp z, delay_operation
 
         ;;
         ;; Is it an I?
@@ -632,6 +641,31 @@ print_stack:
         ; newline after the output
         ld a, 0x0A
         call bios_output_character
+
+        POP_ALL
+        jp interpret
+
+
+;;
+;; Called if we've been given "h" in the input.
+;;
+;; Call HALT the number of times specified in the temporary storage area
+;;
+delay_operation:
+        PUSH_ALL
+        ; get value
+        ld hl, tmp_store
+        ld d, (hl)
+        inc hl
+        ld e, (hl)
+
+delay_operation_loop:
+        halt
+
+        dec de
+        ld a, d
+        or e
+        jr nz, delay_operation_loop
 
         POP_ALL
         jp interpret
