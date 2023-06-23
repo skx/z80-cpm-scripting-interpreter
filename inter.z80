@@ -25,22 +25,22 @@
 ;;; Valid inputs:
 ;;
 ;; 0-9:  Build up a number
-;;   #:  Set I/O to use the port in the storage-area
-;;   c:  Clear the number in the storage-area
-;;   i:  Read a byte of input, from the selected I/O port, and place it in the storage-area
+;;   #:  Set the I/O register to be the contents of the accumulator.
+;;   c:  Clear the accumulator.
+;;   i:  Read a byte of input, from the selected I/O port, and place it in the accumulator.
 ;;   g:  Read the stored value of the memory address, and CALL it.
-;;   h:  Halt for the number of times specified in the storage-area.
+;;   h:  Halt for the number of times specified in the accumulator.
 ;;   k:  Copy the accumulator to the k-register.
 ;;   K:  Copy the k-register to the accumulator.
-;;   m:  Set the memory address to read/write to from the contents of the temporary storage area
+;;   m:  Set the memory address to read/write to from the contents of the accumulator.
 ;;   n:  Write a newline.
-;;   o:  Write the contents of the storage-area to the I/O port selected.
+;;   o:  Write the contents of the accumulator to the I/O port selected.
 ;;   p:  Print the four-digit value held in the accumulator.
 ;;   P:  Print the two-digit value held in the lower half of the accumulator.
 ;;   q:  Quit, if we're in REPL-mode
 ;;   r:  Read the contents of the memory-address, and place in the storage area.
 ;;   w:  Write the contents of the storage-area (byte) to the selected memory address.
-;;   x:  Print the character whos ASCII code is stored in the storage-area
+;;   x:  Print the character whos ASCII code is stored in the accumulator.
 ;;   _:  Print the string contained between "_" and "_".
 ;; " ":  Whitespace is skipped over
 ;;
@@ -48,6 +48,8 @@
 ;;
 
 ;;; TODO
+;;
+;;  - Nested loops wouldn't be impossible.
 ;;
 ;;  - Allow either stack operations, or the use of named variables
 ;;    - A single "temporary area" is too limiting.
@@ -136,10 +138,7 @@ repl_loop_reset_input:
       djnz repl_loop_reset_input
 
       ; The start of the prompt
-      ld a, 0x0a
-      call bios_output_character
-      ld a, 0x0d
-      call bios_output_character
+      call output_newline
       ld a, '['
       call bios_output_character
 
@@ -166,8 +165,7 @@ repl_loop_reset_input:
       ;
       ; Print a newline
       ;
-      ld a, 0x0A
-      call bios_output_character
+      call output_newline
 
       ;
       ; Now interpret the string
@@ -265,8 +263,12 @@ interpret:
         ;; Write a newline
         ;;
         cp 'n'
-        jp z, output_newline
+        jp nz, not_output_newline
 
+        call output_newline
+        jr interpret
+
+not_output_newline:
         ;;
         ;; Is it an O?
         ;;
@@ -622,7 +624,9 @@ io_port_in:
 output_newline:
         ld a, 0x0A
         call bios_output_character
-        jp interpret
+        ld a, 0x0D
+        call bios_output_character
+        ret
 
 ;;
 ;; Called if we've got an O in the input, perform an I/O write.
@@ -903,10 +907,10 @@ Conv:
 include "bios.z80"
 
 ;;
-;; The string we interpret
+;; The string we interpret when not in REPL mode.
 ;;
 sample_str:
-        DB "p c123pc42xxxxc72xc73xc10xc72xc73xc10x"
+        DB "10k{Kp_ OK!_n}"
         DB 0x00
 
 ;;
