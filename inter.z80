@@ -26,17 +26,17 @@
 ;;
 ;; 0-9:  Build up a number
 ;;   #:  Set I/O to use the port in the storage-area
-;;  cC:  Clear the number in the storage-area
-;;  iI:  Read a byte of input, from the selected I/O port, and place it in the storage-area
-;;  gG:  Read the stored value of the memory address, and CALL it.
-;;  hH:  Halt for the number of times specified in the storage-area.
-;;  mM:  Set the memory address to read/write to from the contents of the temporary storage area
-;;  oO:  Write the contents of the storage-area to the I/O port selected.
-;;  pP:  Print the number in the storage-area
-;;  qQ:  Quit, if we're in REPL-mode
-;;  rR:  Read the contents of the memory-address, and place in the storage area.
-;;  wW:  Write the contents of the storage-area (byte) to the selected memory address.
-;;  xX:  Print the character whos ASCII code is stored in the storage-area
+;;   c:  Clear the number in the storage-area
+;;   i:  Read a byte of input, from the selected I/O port, and place it in the storage-area
+;;   g:  Read the stored value of the memory address, and CALL it.
+;;   h:  Halt for the number of times specified in the storage-area.
+;;   m:  Set the memory address to read/write to from the contents of the temporary storage area
+;;   o:  Write the contents of the storage-area to the I/O port selected.
+;;   p:  Print the number in the storage-area
+;;   q:  Quit, if we're in REPL-mode
+;;   r:  Read the contents of the memory-address, and place in the storage area.
+;;   w:  Write the contents of the storage-area (byte) to the selected memory address.
+;;   x:  Print the character whos ASCII code is stored in the storage-area
 ;; " ":  Whitespace is skipped over
 ;;
 ;; All other inputs are ignored.
@@ -237,15 +237,11 @@ interpret:
         ;;
         cp 'g'
         jp z, ram_call
-        cp 'G'
-        jp z, ram_call
 
         ;;
         ;; Is it a H?
         ;;
         cp 'h'
-        jp z, delay_operation
-        cp 'H'
         jp z, delay_operation
 
         ;;
@@ -253,15 +249,11 @@ interpret:
         ;;
         cp 'i'
         jp z, io_port_in
-        cp 'I'
-        jp z, io_port_in
 
         ;;
         ;; Is it an M?
         ;;
         cp 'm'
-        jp z, ram_set
-        cp 'M'
         jp z, ram_set
 
         ;;
@@ -269,44 +261,32 @@ interpret:
         ;;
         cp 'o'
         jp z, io_port_out
-        cp 'O'
-        jp z, io_port_out
 
         ;;
         ;; Is it a P?
         ;;
         cp 'p'
         jp z, print_stack
-        cp 'P'
-        jp z, print_stack
 
         ;;
         ;; Q will quit
         cp 'q'
         jr z, quit
-        cp 'Q'
-        jr z,quit
 
         ;;
         ;; Is it a R?
         cp 'r'
-        jp z, ram_read
-        cp 'R'
         jp z, ram_read
 
         ;;
         ;; Is it a W?
         cp 'w'
         jp z, ram_write
-        cp 'W'
-        jp z, ram_write
 
         ;;
         ;; Is it a X?
         ;;
         cp 'x'
-        jp z, output_stack_char
-        cp 'X'
         jp z, output_stack_char
 
         ;;
