@@ -6,10 +6,13 @@
 ;; interpretation of a simple stack-language.
 ;;
 ;; We're not really a stack-language, we have a single location which
-;; can be used to store a number, and in the future that can be used
-;; for various things.  There is support for I/O to/from arbitrary ports,
-;; as well as a RAM reading/writing - both of these use a dedicated storage
-;; helper to hold the value to use for input or output.
+;; can be used to store a number, the accumulator or A register.
+;;
+;; There is support for I/O to/from arbitrary ports, as well as a RAM
+;; reading/writing - both of these use a dedicated storage register
+;; port or RAM location to use for input or output.
+;;
+;; Finally we have a dedicated K-register for loop-operations.
 ;;
 ;; When the REPL is used the currently selected I/O port is shown in
 ;; the prompt.
@@ -33,6 +36,7 @@
 ;;   k:  Copy the accumulator to the k-register.
 ;;   K:  Copy the k-register to the accumulator.
 ;;   m:  Set the memory address to read/write to from the contents of the accumulator.
+;;   M:  Set the accumulator to the memory-address in the M-register.
 ;;   n:  Write a newline.
 ;;   o:  Write the contents of the accumulator to the I/O port selected.
 ;;   p:  Print the four-digit value held in the accumulator.
@@ -62,34 +66,32 @@
 ;;; Sample code
 ;;
 ;;  "c3#ip"
-;;    1.1: Clear the temporary value
-;;    1.2: Store the value 3 in the temporary area
-;;    1.3: Use the temporary area to set the I/O port (3).
+;;    1.1: Clear the accumulator
+;;    1.2: Store the value 3 in the accumulator.
+;;    1.3: Use the accumulator to set the I/O register-value (3).
 ;;    1.4: Read from the currently selected I/O port (3)
 ;;    1.5: Print the value just read
 ;;
 ;;  "c42p"
-;;    1.1: Clear the temporary value
-;;    1.2: Store the value 42 (decimal) in the temporary area
-;;    1.3: Print the value from the temporary area
+;;    1.1: Clear the accumulator.
+;;    1.2: Store the value 42 (decimal) in the accumulator.
+;;    1.3: Print the value from the accumulator.
 ;;
 ;;  "42x"
-;;    1.1: Store the value 42 (decimal) in the temporary area
+;;    1.1: Store the value 42 (decimal) in the accumulator.
 ;;    1.2: Print the character with that ASCII value ("*")
 ;;
 ;;  "p"
-;;    1.1: Print the contents of the temporary area (which will default to 0)
+;;    1.1: Print the contents of the accumulator (which will default to 0)
 ;;
-;;  "c72xc73xc10x"
-;;    1.1: "c" will clear the temporary area.
-;;    1.2: 72 -> store the number 72 in the temporary area
-;;    1.3:  x -> print the character stored in the temporary area "H"
-;;    1.4: "c" will clear the temporary area.
-;;    1.5: 73 -> store the number 73 in the temporary area
-;;    1.6:  x -> print the character stored in the temporary area "I"
-;;    1.7: "c" will clear the temporary area.
-;;    1.8: 10 -> store the number 10 in the temporary area
-;;    1.9:  x -> print the character stored in the temporary area "\n"
+;;  "c72xc73xn"
+;;    1.1: "c" will clear the accumulator.
+;;    1.2: 72 -> store the number 72 in the accumulator.
+;;    1.3:  x -> print the character stored in the accumulator "H", as ASCII
+;;    1.4: "c" will clear the accumulator.
+;;    1.5: 73 -> store the number 73 in the accumulator.
+;;    1.6:  x -> print the character stored in the accumulator "I", as ASCCI
+;;    1.7: "n" print a newline
 
 MACRO PUSH_ALL
         push af
@@ -178,11 +180,11 @@ repl_loop_reset_input:
 
 ELSE
 
-   ;
-   ; Call the interpreter with a static string
-   ;
-   ld hl, sample_str
-   call interpret
+      ;
+      ; Call the interpreter with a static string
+      ;
+      ld hl, sample_str
+      call interpret
 
 ENDIF
 
@@ -197,6 +199,10 @@ ENDIF
 ;
 ; Outputs:
 ;   None
+;
+; Execution will continue until a NUL is detected, or an invalid character
+; is hit.
+;
 interpret:
 
         ;;
@@ -213,8 +219,6 @@ interpret:
         ;;
         inc hl
 
-        ;;
-        ;; Now we need to process the input.
         ;;
         ;; Skip spaces, newlines TABs.
         ;;
@@ -239,9 +243,7 @@ not_number:
         ;; Is it a C?
         ;;
         cp 'c'
-        jp z, clear_stack
-        cp 'C'
-        jp z, clear_stack
+        jp z, clear_accumulator
 
         ;;
         ;; Is it a G?
@@ -265,7 +267,9 @@ not_number:
         ;; Is it an M?
         ;;
         cp 'm'
-        jp z, ram_set
+        jp z, m_register_set
+        cp 'M'
+        jp z, m_register_get
 
         ;;
         ;; Write a newline
@@ -310,7 +314,7 @@ not_output_newline:
         ;; Is it a X?
         ;;
         cp 'x'
-        jp z, output_stack_char
+        jp z, output_accumulator_as_char
 
         ;; Is this an I/O port flag?
         cp 'u'
@@ -379,18 +383,20 @@ digit:
 
         call atoui_16
 
-        ; hl has the result
+        ; HL has the result - copy to BC
         push hl
         pop bc
 
-        ; DE points to the value after
+        ; DE points to the value after the end
+        ; of the string.  This is where we need to continue
+        ; execution, so we save this to restore HL to that later.
         ld hl, xx
         ld (hl),d
         inc hl
         ld (hl), e
 
-        ; save the value
-        ld hl, tmp_store
+        ; save the value we parsed into the accumulator
+        ld hl, a_register
         ld (hl), b
         inc hl
         ld (hl), c
@@ -398,6 +404,7 @@ digit:
 
         POP_ALL
 
+        ; Now point HL to the next character to interpret
         ld hl,xx
         ld a, (hl)
         inc hl
@@ -405,11 +412,13 @@ digit:
         ld h, a
         jp interpret
 
+;; temporary storage for the HL register
+;; since we use push-all/pop all we can't save it
+;; on the stack so easily.
 xx:
         DB 0x00
         DB 0x00
 
-string_to_uint16:
 atoui_16:
 ;Input:
 ;     DE points to the string
@@ -451,37 +460,50 @@ _:
   inc h
   jp _
 
+
 ;;
-;; Called if we've got a C in the input; clear the temporary store
+;; Called if we've got a C in the input; clear the accumulator
 ;;
-clear_stack:
-        PUSH_ALL
-        ld hl, tmp_store
-        ld (hl), 0x00
+clear_accumulator:
+        push hl
+        ld hl, a_register
+        xor a
+        ld (hl),a
         inc hl
-        ld (hl), 0x00
-        POP_ALL
+        ld (hl), a
+        pop hl
         jp interpret
 
 
 ;;
 ;; Called if we've got M; set the memory address to read/write
 ;;
-ram_set:
-        PUSH_ALL
-        ; dl = temporary store value
-        ld hl, tmp_store
-        ld d,(hl)
+m_register_set:
+        push hl
+        ld hl, m_register
+        call store_accumulator
+        pop hl
+        jp interpret
+
+;;
+;; Called if we've got M, get the M-register to the accumulator
+;;
+m_register_get:
+        push hl
+
+        ; get the value
+        ld hl, m_register
+        ld d, (hl)
         inc hl
         ld e, (hl)
 
-        ; now set that
-        ld hl, ram_address
+        ; save it
+        ld hl, a_register
         ld (hl), d
         inc hl
         ld (hl), e
 
-        POP_ALL
+        pop hl
         jp interpret
 
 
@@ -490,9 +512,12 @@ ram_set:
 ;; in the memory register.
 ;;
 ram_call:
-        PUSH_ALL
-        ; get the ram address to read in HL
-        ld hl, ram_address
+        ; return-address
+        ld hl, interpret
+        push hl
+
+        ; get the ram address in HL
+        ld hl, m_register
         ld a, (hl)
         inc hl
         ld l, (hl)
@@ -502,9 +527,6 @@ ram_call:
         push hl
         ret
 
-        ; restore
-        POP_ALL
-        ret
 
 ;;
 ;; Called if we've got an R in the input, perform a RAM read.
@@ -515,7 +537,7 @@ ram_call:
 ram_read:
         PUSH_ALL
         ; get the ram address to read in HL
-        ld hl, ram_address
+        ld hl, m_register
         ld a, (hl)
         inc hl
         ld l, (hl)
@@ -525,25 +547,38 @@ ram_read:
         ld a, (hl)
 
         ; store in temporary area
-        ld hl, tmp_store
+        ld hl, a_register
         ld (hl), 0x00
         inc hl
         ld (hl), a
 
-        ; Increment the adddress.
-        ld hl, ram_address
-        ld d, (hl)
-        inc hl
-        ld e, (hl)
-        inc de
-        ld hl, ram_address
-        ld (hl), d
-        inc hl
-        ld (hl), e
+        ; Increment the contents of the M-register
+        call m_register_inc
 
         POP_ALL
         jp interpret
 
+
+;; Increment the contents of the M-register.
+;;
+;; This is done every time we have a RAM read/write to ease loops.
+;;
+m_register_inc:
+        ; set DE with the contents of the M-register
+        ld hl, m_register
+        ld d, (hl)
+        inc hl
+        ld e, (hl)
+
+        ; increment
+        inc de
+
+        ; write back
+        dec hl
+        ld (hl), d
+        inc hl
+        ld (hl), e
+        ret
 
 ;;
 ;; called if we've got a W in the input, write to the memory address
@@ -552,7 +587,7 @@ ram_read:
 ram_write:
         PUSH_ALL
         ; get the ram address to write in HL
-        ld hl, ram_address
+        ld hl, m_register
         ld a, (hl)
         inc hl
         ld l, (hl)
@@ -560,23 +595,15 @@ ram_write:
 
         ; get the value to write in A
         push hl
-        ld hl, tmp_store+1
+        ld hl, a_register+1
         ld a,(hl)
         pop hl
 
         ; Write now.
         ld (hl),a
 
-        ; Increment the adddress.
-        ld hl, ram_address
-        ld d, (hl)
-        inc hl
-        ld e, (hl)
-        inc de
-        ld hl, ram_address
-        ld (hl), d
-        inc hl
-        ld (hl), e
+        ; Increment the contents of the M-register
+        call m_register_inc
 
         POP_ALL
         jp interpret
@@ -597,8 +624,8 @@ io_port_in:
         in a, (c)
 
         ; store
-        ld hl, tmp_store
-        ld (hl), 0x0
+        ld hl, a_register
+        ld (hl), 0x00
         inc hl
         ld (hl),a
         POP_ALL
@@ -627,7 +654,7 @@ io_port_out:
         ld c, (hl)
 
         ; get the value to write
-        ld hl, tmp_store+1
+        ld hl, a_register+1
         ld a, (hl)
 
         ; write
@@ -641,7 +668,7 @@ io_port_out:
 ;;
 print_accumulator_full:
         PUSH_ALL
-        ld hl, tmp_store
+        ld hl, a_register
         ld a, (hl)
         inc hl
         ld l, (hl)
@@ -655,7 +682,7 @@ print_accumulator_full:
 ;;
 print_accumulator_bottom:
         PUSH_ALL
-        ld hl, tmp_store+1
+        ld hl, a_register+1
         ld c, (hl)
         call output_8_bit_number
 
@@ -671,7 +698,7 @@ print_accumulator_bottom:
 delay_operation:
         PUSH_ALL
         ; get value
-        ld hl, tmp_store
+        ld hl, a_register
         ld d, (hl)
         inc hl
         ld e, (hl)
@@ -688,32 +715,83 @@ delay_operation_loop:
         jp interpret
 
 
+;; Store the contents of the accumulator in the given address.
+;;
+;; Inputs:
+;;   HL the address to store the accumulator
+;;
+store_accumulator:
+        push hl
+        push hl
+
+        ; dl = temporary store value
+        ld hl, a_register
+        ld d,(hl)
+        inc hl
+        ld e, (hl)
+
+        ; now set the value
+        pop hl
+        ld (hl), d
+        inc hl
+        ld (hl), e
+        pop hl
+        ret
+
+
+;; Store the lower-half of the accumulator in the given address
+;;
+;; Inputs:
+;;   HL the address to store the accumulator
+;;
+store_accumulator_lower:
+        push hl
+
+        ; dl = temporary store value
+        ld hl, a_register + 1
+        ld e, (hl)
+
+        ; now set the value
+        pop hl
+        ld (hl), e
+        ret
+
+;;
+;; Copy the lower part of the accumulator from the given location
+;;
+;; Inputs:
+;;   Address to copy from in HL
+;;
+reg_to_accumulator_lower:
+        ; get the value
+        ld a,(hl)
+
+        ld hl, a_register
+        ld (hl), 0x00
+        inc hl
+        ld (hl),a
+        ret
+
 ;;
 ;; Called if we've been given "u" in the input.
 ;;
 ;; Update the current I/O port, with the contents of the accumulator.
 ;;
 io_port_set:
-        PUSH_ALL
-        ld hl, tmp_store+1
-        ld a, (hl)
+        push hl
         ld hl, io_port
-        ld (hl),a
-        POP_ALL
+        call store_accumulator_lower
+        pop hl
         jp interpret
 
 ;;
 ;; Called if we've been given "U", copy the U-register to the accumulator.
 ;;
 io_port_get:
-        PUSH_ALL
+        push hl
         ld hl, io_port
-        ld a,(hl)
-        ld hl, tmp_store
-        ld (hl), 0
-        inc hl
-        ld (hl),a
-        POP_ALL
+        call  reg_to_accumulator_lower
+        pop hl
         jp interpret
 
 
@@ -721,12 +799,10 @@ io_port_get:
 ;; Called if we've been given "k", copy the accumulator into the k-register
 ;;
 k_register_set:
-        PUSH_ALL
-        ld hl, tmp_store+1
-        ld a, (hl)
+        push hl
         ld hl, k_register
-        ld (hl),a
-        POP_ALL
+        call store_accumulator_lower
+        pop hl
         jp interpret
 
 
@@ -735,14 +811,10 @@ k_register_set:
 ;; Called if we've been given "K", copy the k-register to the accumulator.
 ;;
 k_register_get:
-        PUSH_ALL
+        push hl
         ld hl, k_register
-        ld a,(hl)
-        ld hl, tmp_store
-        ld (hl), 0
-        inc hl
-        ld (hl),a
-        POP_ALL
+        call reg_to_accumulator_lower
+        pop hl
         jp interpret
 
 ;;
@@ -825,9 +897,9 @@ string_output_over:
 ;;
 ;; Show the temporary-storage character, as an ASCII character
 ;;
-output_stack_char:
+output_accumulator_as_char:
         PUSH_ALL
-        ld hl, tmp_store+1
+        ld hl, a_register+1
         ld a, (hl)
         call bios_output_character
         POP_ALL
@@ -919,7 +991,7 @@ sample_str:
 ;;
 ;; The maximum value is 0xFFFF
 ;;
-tmp_store:
+a_register:
         DB 0x00
         DB 0x00
 
@@ -941,7 +1013,7 @@ k_register:
 ;;
 ;; RAM address which is to be used for reading/writing.
 ;;
-ram_address:
+m_register:
         DB 0x00
         DB 0x00
 
