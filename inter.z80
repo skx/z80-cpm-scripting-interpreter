@@ -48,15 +48,13 @@
 ;;   _:  Print the string contained between "_" and "_".
 ;; " ":  Whitespace is skipped over
 ;;
-;; All other inputs are ignored.
+;; All other inputs will generate an error, and terminate execution.
 ;;
 
 ;;; TODO
 ;;
-;;  - Nested loops wouldn't be impossible.
-;;
 ;;  - Allow either stack operations, or the use of named variables
-;;    - A single "temporary area" is too limiting.
+;;    - A single accumulator is a bit limiting.
 ;;
 ;;  - Add "+", "-", etc.
 ;;
@@ -188,7 +186,7 @@ ELSE
 
 ENDIF
 
-   ret
+      ret
 
 
 ;
@@ -512,8 +510,8 @@ m_register_get:
 ;; in the memory register.
 ;;
 ram_call:
-        ; return-address
-        ld hl, interpret
+        ; return-address - we'll want execution to back to the repl-start
+        ld hl, repl_loop
         push hl
 
         ; get the ram address in HL
@@ -527,6 +525,8 @@ ram_call:
         push hl
         ret
 
+        ; not used
+        jp interpret
 
 ;;
 ;; Called if we've got an R in the input, perform a RAM read.
@@ -854,7 +854,6 @@ k_register_loop:
 
         ;; Skip the loop, by going forward to the closing character
         ;;
-        ;; TODO / FIXME: We could count open braces to allow nested loops...
 loop_time_over:
         ld a, (hl)
         inc hl
@@ -868,8 +867,6 @@ loop_time_over:
 ;;
 ;; We have HL pointing to the character after the loop, and we
 ;; want to change it to point back to the start of the loop.
-;;
-;; TODO / FIXME: We could count brace-pairs to allow nested loops
 ;;
 k_register_loop_again:
         ld a, (hl)
