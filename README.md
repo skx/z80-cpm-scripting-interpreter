@@ -113,10 +113,23 @@ Kp
 
 K copies the contents of the loop-register back to the accumulator, which is then printed by the `p` command.
 
+Another example would be to dump the first 16 bytes of RAM:
+
+```
+> 0m 16k{rP _ _}
+C3 03 EA 00 00 C3 06 DC 00 00 00 00 00 00 00 00
+```
+
+* `0m`: Stores the address zero in the M-register
+* `16k`: Sets the K-register, our loop counter, to 16.
+* `{`: loop-start
+  * `r`: Read a byte into the accumulator from the address in the M-register, incrementing that register in the process.
+  * `P`: Print the contents of the accumulator as a 2-digit HEX number.
+  * `_ _`: Output a space, to split the output nicely.
+* `}`: loop-end
+
 
 ### Sample "Programs"
-
-> Note: In these examples I've prefixed "c" to the input, this clears the state of the accumulator - which isn't necessary if you run them immediately upon startup, but will avoid surprises otherwise.
 
 Also note that I broke up the "programs" with whitespace to aid readability.  This still works, spaces, TABs, and newlines are skipped over by the interpreter.
 
@@ -126,46 +139,56 @@ Show a greeting:
 _Hello, world!_
 ```
 
-Store the value 42 in the accumulator, and print it:
+Store the value 42 in the accumulator, and print it as a four-digit hex number:
 
 ```
-c 42 p
+42p
 ```
 
-
-Store the value "201" (opcode for RET) at address 20000, and JMP to it, this will call RET which will exit to CP/M:
+To print the value as a byte, not a word use `P` rather than `p`:
 
 ```
-c 20000 m c 201 w 20000 m g
+42P
 ```
 
+Store the value "201" (opcode for RET) at address 20000, and CALL it, this will execute RET which will return to our REPL:
+
+```
+20000m 201w 20000mg
+```
+
+Jump to address 0x0000, which will exit back to the CP/M prompt:
+
+```
+0mg
+```
 
 Store the value 42 in the accumulator, then print that as if it were the ASCII code of a character (output "`*`"):
 
 ```
-c 42 x
+42x
 ```
 
 Configure the I/O port to be port 0x01, read a byte from it to the accumulator, then print that value:
 
 ```
-c 1 u i p
+1u i p
 ```
 
 Write the byte 32, then the byte 77, to the I/O port 3.
 
 ```
-c 3 u c 32 o c 77 o
+3u 32o 77o
 ```
 
 To be more explicit that last example could have been written as:
 
-* `c3uc32oc77o`
-  * `c3` - Clear the accumulator, and write the number 3 to it.
+* `3u32o77o`
+  * `3` - Write 3 to the accumulator.
   * `u` - Set the I/O port to be used for (i)nput and (o)utput to be the value in the accumulator, i.e. 3.
-  * `c32` - Clear the accumulator, and write the number 32 to it.
+  * `32`- Write 32 to the accumulator.
   * `o` - Output the byte in the accumulator (32) to the currently selected I/O port (3)
-  * `c77` - Clear the accumulator, and write the number 77 to it.
+  * `77`- Write 77 to the accumulator.
   * `o` - Output the byte in the accumulator (77) to the currently selected I/O port (3)
 
 
