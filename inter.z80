@@ -535,7 +535,7 @@ ram_call:
 ;; RAM address
 ;;
 ram_read:
-        PUSH_ALL
+        push hl
         ; get the ram address to read in HL
         ld hl, m_register
         ld a, (hl)
@@ -555,7 +555,7 @@ ram_read:
         ; Increment the contents of the M-register
         call m_register_inc
 
-        POP_ALL
+        pop hl
         jp interpret
 
 
@@ -585,7 +585,7 @@ m_register_inc:
 ;; stored in the memory-area.
 ;;
 ram_write:
-        PUSH_ALL
+        push hl
         ; get the ram address to write in HL
         ld hl, m_register
         ld a, (hl)
@@ -605,7 +605,7 @@ ram_write:
         ; Increment the contents of the M-register
         call m_register_inc
 
-        POP_ALL
+        pop hl
         jp interpret
 
 
@@ -615,7 +615,7 @@ ram_write:
 ;; Store the result in the temporary storage area
 ;;
 io_port_in:
-        PUSH_ALL
+        push hl
         ; get the port to use
         ld hl, io_port
         ld c, (hl)
@@ -628,7 +628,7 @@ io_port_in:
         ld (hl), 0x00
         inc hl
         ld (hl),a
-        POP_ALL
+        pop hl
         jp interpret
 
 ;;
@@ -647,7 +647,7 @@ output_newline:
 ;; The temporary storage area will have the byte to write.
 ;;
 io_port_out:
-        PUSH_ALL
+        push hl
 
         ; get the port
         ld hl, io_port
@@ -659,7 +659,7 @@ io_port_out:
 
         ; write
         out (c), a
-        POP_ALL
+        pop hl
         jp interpret
 
 ;;
@@ -681,12 +681,12 @@ print_accumulator_full:
 
 ;;
 print_accumulator_bottom:
-        PUSH_ALL
+        push hl
         ld hl, a_register+1
         ld c, (hl)
         call output_8_bit_number
 
-        POP_ALL
+        pop hl
         jp interpret
 
 
@@ -696,7 +696,7 @@ print_accumulator_bottom:
 ;; Call HALT the number of times specified in the temporary storage area
 ;;
 delay_operation:
-        PUSH_ALL
+        push hl
         ; get value
         ld hl, a_register
         ld d, (hl)
@@ -711,7 +711,7 @@ delay_operation_loop:
         or e
         jr nz, delay_operation_loop
 
-        POP_ALL
+        pop hl
         jp interpret
 
 
@@ -895,11 +895,11 @@ string_output_over:
 ;; Show the temporary-storage character, as an ASCII character
 ;;
 output_accumulator_as_char:
-        PUSH_ALL
+        push hl
         ld hl, a_register+1
         ld a, (hl)
         call bios_output_character
-        POP_ALL
+        pop hl
         jp interpret
 
 
@@ -907,48 +907,12 @@ output_accumulator_as_char:
 ; Display the contents of HL as a hexadecimal number.
 ;
 DisplayHLAsHex:
-        PUSH_ALL
         ld  c,h
         call  output_8_bit_number
         ld  c,l
         call output_8_bit_number
-        POP_ALL
         ret
 
-
-;;
-;; Read the two-digit HEX number from HL, and convert to an integer
-;; stored in the A-register.
-;;
-;; HL will be incremented twice.
-;;
-read_8_bit_ascii_number:
-	ld		a, (hl)
-        ;; is it lower-case?  If so upper-case it.
-        cp 'a'
-        jr c, read_8_bit_ascii_number_uc
-        cp 'z'
-        jr nc, read_8_bit_ascii_number_uc
-        sub 32
-read_8_bit_ascii_number_uc:
-        call		read_8_bit_ascii_number_hex
-        add		a, a
-        add		a, a
-        add		a, a
-        add		a, a
-        ld		d, a
-	inc		hl
-        ld		a, (hl)
-        call		read_8_bit_ascii_number_hex
-        or		d
-	inc		hl
-        ret
-read_8_bit_ascii_number_hex:
-        sub		'0'
-        cp		10
-        ret		c
-        sub		'A'-'0'-10
-        ret
 
 ;;
 ;; Display the 8-bit number stored in C in hex.
