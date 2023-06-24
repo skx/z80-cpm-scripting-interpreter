@@ -37,8 +37,6 @@ bios_exit:
 bios_input_line:
         ; We're passed a buffer, and the first byte is the size to read
         ; We arbitrarily say 200 bytes.
-        ld a, 200
-        ld (de),a
         ld c, 0x0A
         call 0x005
         ret

@@ -2,14 +2,14 @@
 
 ;;; Overview
 ;;
-;; This interpreter can be compiled with pasmo, and will allow the
+;; This source file may be compiled with pasmo, and will allow the
 ;; interpretation of a simple stack-language.
 ;;
 ;; We're not really a stack-language, we have a single location which
 ;; can be used to store a number, the accumulator or A register.
 ;;
 ;; There is support for I/O to/from arbitrary ports, as well as a RAM
-;; reading/writing - both of these use a dedicated storage register
+;; reading/writing - each of these use a dedicated storage register
 ;; port or RAM location to use for input or output.
 ;;
 ;; Finally we have a dedicated K-register for loop-operations.
@@ -63,12 +63,12 @@
 
 ;;; Sample code
 ;;
-;;  "c3#ip"
+;;  "c3#iP"
 ;;    1.1: Clear the accumulator
 ;;    1.2: Store the value 3 in the accumulator.
 ;;    1.3: Use the accumulator to set the I/O register-value (3).
-;;    1.4: Read from the currently selected I/O port (3)
-;;    1.5: Print the value just read
+;;    1.4: Read from the currently selected I/O port (3).
+;;    1.5: Print the value just read, as a two-byte HEX number.
 ;;
 ;;  "c42p"
 ;;    1.1: Clear the accumulator.
@@ -91,21 +91,34 @@
 ;;    1.6:  x -> print the character stored in the accumulator "I", as ASCCI
 ;;    1.7: "n" print a newline
 
+
+;;;
+;;; Macros
+;;;
+
 MACRO PUSH_ALL
         push af
         push bc
         push hl
       ENDM
 
-
-;
-; Simple macro to pop all (important) registers.
-;
 MACRO POP_ALL
         pop hl
         pop bc
         pop af
       ENDM
+
+;;;
+;;; Definitions
+;;;
+
+
+INPUT_BUFFER_SIZE: EQU 200
+
+
+;;
+;; Entry-Point
+;;
 
       ;
       ; CP/M binaries start at 0x100
@@ -113,7 +126,7 @@ MACRO POP_ALL
       ORG 0x100
 
       ;
-      ; Perform the init required
+      ; Perform any init that might be required.
       ;
       call bios_init
 
@@ -129,25 +142,23 @@ repl_loop:
 
       ; Fill input-buffer with NULL
       ld hl, input_buffer+2
-      ld bc, 200
+      ld bc, INPUT_BUFFER_SIZE
 repl_loop_reset_input:
       ld (hl), 0x00
       inc hl
       djnz repl_loop_reset_input
 
-      ; The start of the prompt
+      ; Output the start of the prompt: [
       call output_newline
       ld a, '['
       call bios_output_character
 
-      ;
-      ; Show the I/O port - 0x00-0xff
-      ;
-      ld hl, io_port
+      ; Show the I/O port - 0x00-0xff - currently selected
+      ld hl, u_register
       ld c, (hl)
       call output_8_bit_number
 
-      ; The end of the prompt
+      ; Output the end of the prompt: ]>
       ld a, ']'
       call bios_output_character
       ld a, '>'
@@ -158,6 +169,8 @@ repl_loop_reset_input:
       ; Read input from the user.
       ;
       ld de, input_buffer
+      ld a, INPUT_BUFFER_SIZE
+      ld (de), a
       call bios_input_line
 
       ;
@@ -233,8 +246,7 @@ interpret:
         cp '0'-1
         jr c, not_number
         cp '9'+1
-        jr nc, not_number
-        jp digit
+        jr c, digit
 
 not_number:
         ;;
@@ -617,7 +629,7 @@ ram_write:
 io_port_in:
         push hl
         ; get the port to use
-        ld hl, io_port
+        ld hl, u_register
         ld c, (hl)
 
         ; read
@@ -650,7 +662,7 @@ io_port_out:
         push hl
 
         ; get the port
-        ld hl, io_port
+        ld hl, u_register
         ld c, (hl)
 
         ; get the value to write
@@ -779,7 +791,7 @@ reg_to_accumulator_lower:
 ;;
 io_port_set:
         push hl
-        ld hl, io_port
+        ld hl, u_register
         call store_accumulator_lower
         pop hl
         jp interpret
@@ -789,7 +801,7 @@ io_port_set:
 ;;
 io_port_get:
         push hl
-        ld hl, io_port
+        ld hl, u_register
         call  reg_to_accumulator_lower
         pop hl
         jp interpret
@@ -853,7 +865,6 @@ k_register_loop:
 
 
         ;; Skip the loop, by going forward to the closing character
-        ;;
 loop_time_over:
         ld a, (hl)
         inc hl
@@ -886,6 +897,7 @@ string_output:
         inc hl
         jr string_output
 string_output_over:
+        ; skip over the closing "_" character.
         inc hl
         jp interpret
 
@@ -957,9 +969,9 @@ a_register:
         DB 0x00
 
 ;;
-;; I/O port which is currently selected
+;; U-register is used to record which I/O port is used for (i)nput/(o)utput.
 ;;
-io_port:
+u_register:
         DB 0x00
 
 
@@ -972,7 +984,8 @@ k_register:
 
 
 ;;
-;; RAM address which is to be used for reading/writing.
+;; The M-register holds the RAM address which is to be used for
+;; (r)eading/(w)riting, or (g)oing to.
 ;;
 m_register:
         DB 0x00
@@ -988,8 +1001,11 @@ error_character_msg:
 ;;
 ;; Input buffer, when using the REPL
 ;;
+;; This will occupy 202 bytes:
+;;
+;;  A 2 byte prefix for the CP/M BIOS call.
+;;  Then 200 bytes as the maximum input-length we've defined.
+;;
 IF REPL
 input_buffer:
-        DB 0x00
-        DB 0x00
 ENDIF
