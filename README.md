@@ -52,7 +52,7 @@ The following instructions are available:
 * `g`
   * Perform a CALL instruction to the currently selected RAM address in the M-register.
 * `h`
-  * HALT for the number of times specified in the storage-area.
+  * HALT for the number of times specified in the accumulator.
   * This is used for running delay operations.
 * `i`
   * Read a byte of input, from the currently selected I/O port (U-register), and place it in the accumulator.
@@ -62,6 +62,8 @@ The following instructions are available:
   * Copy the contents of the K-register to the accumulator.
 * `m`
   * Write the contents of the accumulator to the currently selected RAM address (in the M-register).
+* `M`
+  * Write the contents of the M-register to the accumulator.
 * `n`
   * Write a newline character.
 * `o`
@@ -114,7 +116,7 @@ K copies the contents of the loop-register back to the accumulator, which is the
 
 ### Sample "Programs"
 
-> Note: In these examples I've prefixed "c" to the input, this clears the state of the temporary storage area - which isn't necessary if you run them immediately upon startup, but will avoid surprises otherwise.
+> Note: In these examples I've prefixed "c" to the input, this clears the state of the accumulator - which isn't necessary if you run them immediately upon startup, but will avoid surprises otherwise.
 
 Also note that I broke up the "programs" with whitespace to aid readability.  This still works, spaces, TABs, and newlines are skipped over by the interpreter.
 
@@ -124,7 +126,7 @@ Show a greeting:
 _Hello, world!_
 ```
 
-Store the value 42 in the temporary storage area, and print it:
+Store the value 42 in the accumulator, and print it:
 
 ```
 c 42 p
@@ -138,13 +140,13 @@ c 20000 m c 201 w 20000 m g
 ```
 
 
-Store the value 42 in the temporary storage area, then print that as if it were the ASCII code of a character (output "`*`"):
+Store the value 42 in the accumulator, then print that as if it were the ASCII code of a character (output "`*`"):
 
 ```
 c 42 x
 ```
 
-Configure the I/O port to be port 0x01, read a byte from it to the temporary storage area, then print that value:
+Configure the I/O port to be port 0x01, read a byte from it to the accumulator, then print that value:
 
 ```
 c 1 u i p
