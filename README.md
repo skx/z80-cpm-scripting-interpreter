@@ -36,7 +36,7 @@ TLDR:
 The following instructions are available:
 
 * `[0-9]`
-  * Build up a number, which is stored in the temporary area.
+  * Build up a number, which is stored in the accumulator / A-register.
 * `[ \t\n]`
   * Ignored.
 * `{..}`
@@ -57,11 +57,11 @@ The following instructions are available:
 * `i`
   * Read a byte of input, from the currently selected I/O port (U-register), and place it in the accumulator.
 * `k`
-  * Copy the contents of the accumulator (lower half) into the K-register.
+  * Copy the contents of the accumulator (lower half) into the K-register which is used for loops.
 * `K`
   * Copy the contents of the K-register to the accumulator.
 * `m`
-  * Write the contents of the accumulator to the currently selected RAM address (in the M-register).
+  * Write the contents of the accumulator to the M-register, which is used to specify the address to (r)ead and (w)rite from.
 * `M`
   * Write the contents of the M-register to the accumulator.
 * `n`
