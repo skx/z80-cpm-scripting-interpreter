@@ -189,6 +189,7 @@ repl_loop_reset_input:
       ;
       jr repl_loop
 
+      ret
 ELSE
 
       ;
@@ -196,11 +197,22 @@ ELSE
       ;
       ld hl, sample_str
       call interpret
+      ret
+
+
+;;
+;; The string we interpret when not in REPL mode.
+;;
+sample_str:
+        DB "10k{Kp_ OK!_n}"
+        DB 0x00
 
 ENDIF
 
-      ret
 
+;;;
+;;; Code
+;;;
 
 ;
 ; This is the entry-point to our interpreter.
@@ -391,6 +403,7 @@ digit:
         push hl
         pop de
 
+        ; code in utils.z80
         call atoui_16
 
         ; HL has the result - copy to BC
@@ -421,54 +434,6 @@ digit:
         ld l, (hl)
         ld h, a
         jp interpret
-
-;; temporary storage for the HL register
-;; since we use push-all/pop all we can't save it
-;; on the stack so easily.
-xx:
-        DB 0x00
-        DB 0x00
-
-atoui_16:
-;Input:
-;     DE points to the string
-;Outputs:
-;     HL is the result
-;     A is the 8-bit value of the number
-;     DE points to the byte after the number
-;Destroys:
-;     BC
-;       if the string is non-empty, BC is HL/10
-;Size:  24 bytes
-;Speed: 42+d(104+{0,9})
-;       d is the number of digits in the number
-;       max is 640 cycles for a 5 digit number
-;Assuming no leading zeros:
-;1 digit:  146cc
-;2 digit:  250cc
-;3 digit:  354cc or 363cc (avg: 354.126cc)
-;4 digit:  458cc or 467cc (avg: 458.27cc)
-;5 digit:  562cc or 571cc or 580cc (avg: 562.4104cc)
-;avg: 544.81158447265625cc (544+13297/16384)
-;===============================================================
-  ld hl,0
-_:
-  ld a,(de)
-  sub 30h
-  cp 10
-  ret nc
-  inc de
-  ld b,h
-  ld c,l
-  add hl,hl
-  add hl,hl
-  add hl,bc
-  add hl,hl
-  add a,l
-  ld l,a
-  jr nc,_
-  inc h
-  jp _
 
 
 ;;
@@ -949,14 +914,25 @@ Conv:
 
 
 
+;;;
+;;; Includes
+;;;
+
+;;
+;; I/O routines - could be rewritten for a single-board computer..
+;;
 include "bios.z80"
 
 ;;
-;; The string we interpret when not in REPL mode.
+;; Utility functions - external
 ;;
-sample_str:
-        DB "10k{Kp_ OK!_n}"
-        DB 0x00
+include "utils.z80"
+
+
+
+;;;
+;;; Storage / State area
+;;;
 
 ;;
 ;; We allow a single number to be entered into the storage-area, and used
@@ -991,6 +967,23 @@ m_register:
         DB 0x00
         DB 0x00
 
+;;
+;; Temporary storage for the HL register in the "digits" routine.
+;;
+;; In our interpreter we use HL to point to the string that we're going
+;; to interpret.  We switch on the character at (HL) so we can find "c",
+;; etc.
+;;
+;; To handle the digit-case we want to move the HL register to point to
+;; the first character _after_ the digits.  Since we use PUSH HL, and POP HL
+;; to restore things we use this location as a temporary location to store
+;; the end.
+;;
+;; TODO / FIXME: We could do better if we had a "is_digit" macro...
+;;
+xx:
+        DB 0x00
+        DB 0x00
 
 ;;
 ;; Error message when unknown characters are input
