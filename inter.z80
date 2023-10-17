@@ -557,10 +557,9 @@ m_register_inc:
         inc de
 
         ; write back
+        ld (hl), e
         dec hl
         ld (hl), d
-        inc hl
-        ld (hl), e
         ret
 
 ;;
