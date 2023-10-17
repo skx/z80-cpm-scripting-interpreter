@@ -131,6 +131,12 @@ INPUT_BUFFER_SIZE: EQU 200
       call bios_init
 
       ;
+      ; Control returns back here after a CALL instruction
+      ; we reset the input-buffer and start execution again.
+      ;
+
+restart_loop:
+      ;
       ; We can be built as a REPL, or as a test-driver.
       ;
 IF REPL
@@ -488,7 +494,7 @@ m_register_get:
 ;;
 ram_call:
         ; return-address - we'll want execution to back to the repl-start
-        ld hl, repl_loop
+        ld hl, restart_loop
         push hl
 
         ; get the ram address in HL
